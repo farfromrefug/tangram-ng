@@ -4,7 +4,7 @@ group = 'com.mapzen.tangram'
 version = '0.17.2-SNAPSHOT'
 
 android {
-  compileSdkVersion 34
+  compileSdkVersion 36
   namespace 'com.mapzen.tangram'
 
   // Specific ABI targets can be chosen with the 'abis' property as a comma-separated list of ABIs.
@@ -17,7 +17,7 @@ android {
 
   defaultConfig {
     minSdkVersion 21
-    targetSdkVersion 30
+    targetSdkVersion 36
     consumerProguardFiles 'tangram-proguard-rules.txt'
     buildConfigField 'String', 'TAG', '"Tangram"'
     externalNativeBuild {
@@ -25,6 +25,7 @@ android {
         targets 'tangram'
         arguments '-DTANGRAM_PLATFORM=android',
                   '-DANDROID_STL=c++_shared'
+                  '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
         cppFlags '-std=c++14',
                  '-fvisibility=hidden', // export only JNIEXPORT
                  '-pedantic',
@@ -60,7 +61,7 @@ android {
 
   externalNativeBuild {
     cmake {
-      version '3.18.1'
+      version '3.30.5'
       path '../../../CMakeLists.txt'
     }
   }
