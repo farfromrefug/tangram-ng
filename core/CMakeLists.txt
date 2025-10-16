@@ -302,7 +302,7 @@ if (TANGRAM_USE_ASAN)
 endif (TANGRAM_USE_ASAN)
 
 # C++14 is required for compiling tangram-core and for using the interface headers.
-set_property(TARGET tangram-core PROPERTY CXX_STANDARD 14)
+set_property(TARGET tangram-core PROPERTY CXX_STANDARD 20)
 
 # We include GLSL shader sources into the library by generating header files with the source text
 # printed into a string constant. A CMake script generates one of these headers for each shader source

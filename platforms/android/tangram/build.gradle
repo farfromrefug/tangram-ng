@@ -26,7 +26,7 @@ android {
         arguments '-DTANGRAM_PLATFORM=android',
                   '-DANDROID_STL=c++_shared'
                   '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
-        cppFlags '-std=c++14',
+        cppFlags '-std=c++20',
                  '-fvisibility=hidden', // export only JNIEXPORT
                  '-pedantic',
                  '-fPIC',
@@ -67,7 +67,7 @@ android {
   }
 
   // next time, be sure to install versions listed at developer.android.com/build/releases/gradle-plugin#compatibility
-  ndkVersion '26.3.11579264'
+  ndkVersion '28.2.13676358'
 
   buildFeatures {
     buildConfig true
@@ -93,7 +93,7 @@ android {
 }
 
 dependencies {
-  api 'com.squareup.okhttp3:okhttp:3.12.13'
+  api 'com.squareup.okhttp3:okhttp:5.2.1'
   implementation 'androidx.annotation:annotation:1.1.0'
 }
 
