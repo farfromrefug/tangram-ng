@@ -45,6 +45,7 @@ println "Project version set to ${project.version}"
 android {
   compileSdkVersion 36
   namespace project.group
+  buildToolsVersion = System.getenv('BUILD_TOOLS') ?: '35.0.0'
 
   // Specific ABI targets can be chosen with the 'abis' property as a comma-separated list of ABIs.
   // From the command line, add '-Ptangram.abis=armeabi-v7a,x86,...' to only build those ABIs.
@@ -104,13 +105,13 @@ android {
 
   externalNativeBuild {
     cmake {
-      version '3.30.5'
+      version System.getenv('CMAKE_VERSION') ?: '3.30.5'
       path '../../../CMakeLists.txt'
     }
   }
 
   // next time, be sure to install versions listed at developer.android.com/build/releases/gradle-plugin#compatibility
-  ndkVersion '28.2.13676358'
+  ndkVersion System.getenv('NDK_VERSION') ?: '28.2.13676358'
 
   buildFeatures {
     buildConfig true
@@ -151,7 +152,7 @@ afterEvaluate {
             aar(MavenPublication) {
                 from components.findByName('release')
                 groupId = project.group
-                artifactId = 'tangram-ng-android'   
+                artifactId = 'tangram-ng-android'
                 version = project.version.toString()
             }
         }
