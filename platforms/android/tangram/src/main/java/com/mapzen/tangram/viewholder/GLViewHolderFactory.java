@@ -1,4 +1,4 @@
-package com.mapzen.tangram.viewholder;
+package com.styluslabs.tangram.viewholder;
 
 import android.content.Context;
 

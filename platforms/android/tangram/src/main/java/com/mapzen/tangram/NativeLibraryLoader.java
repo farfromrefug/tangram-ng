@@ -1,4 +1,4 @@
-package com.mapzen.tangram;
+package com.styluslabs.tangram;
 
 import android.util.Log;
 

@@ -1,4 +1,4 @@
-package com.mapzen.tangram;
+package com.styluslabs.tangram;
 
 import android.graphics.Bitmap;
 import android.opengl.GLSurfaceView;
@@ -10,7 +10,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 import androidx.annotation.NonNull;
 
-import com.mapzen.tangram.viewholder.GLViewHolder;
+import com.styluslabs.tangram.viewholder.GLViewHolder;
 
 class MapRenderer implements GLSurfaceView.Renderer {
 

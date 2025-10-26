@@ -1,4 +1,4 @@
-package com.mapzen.tangram.viewholder;
+package com.styluslabs.tangram.viewholder;
 
 import android.content.Context;
 import android.util.Log;
@@ -6,7 +6,7 @@ import android.view.TextureView;
 
 import androidx.annotation.NonNull;
 
-import com.mapzen.tangram.BuildConfig;
+import com.styluslabs.tangram.BuildConfig;
 
 public class TextureViewHolderFactory implements GLViewHolderFactory {
 

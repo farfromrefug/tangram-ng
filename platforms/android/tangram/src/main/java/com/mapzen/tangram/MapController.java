@@ -1,4 +1,4 @@
-package com.mapzen.tangram;
+package com.styluslabs.tangram;
 
 import android.content.Context;
 import android.content.res.AssetManager;
@@ -14,10 +14,10 @@ import android.util.LongSparseArray;
 import android.view.MotionEvent;
 import android.view.View;
 
-import com.mapzen.tangram.TouchInput.Gestures;
-import com.mapzen.tangram.viewholder.GLViewHolder;
-import com.mapzen.tangram.networking.DefaultHttpHandler;
-import com.mapzen.tangram.networking.HttpHandler;
+import com.styluslabs.tangram.TouchInput.Gestures;
+import com.styluslabs.tangram.viewholder.GLViewHolder;
+import com.styluslabs.tangram.networking.DefaultHttpHandler;
+import com.styluslabs.tangram.networking.HttpHandler;
 
 import java.io.IOException;
 import java.util.Collections;

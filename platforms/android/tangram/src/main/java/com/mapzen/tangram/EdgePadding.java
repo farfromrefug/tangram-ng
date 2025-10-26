@@ -1,4 +1,4 @@
-package com.mapzen.tangram;
+package com.styluslabs.tangram;
 
 /**
  * Holds four integer values that adjust the bounds of a rectangle. Positive values move edges

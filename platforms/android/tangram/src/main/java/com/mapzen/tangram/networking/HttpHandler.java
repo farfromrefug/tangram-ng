@@ -1,7 +1,7 @@
-package com.mapzen.tangram.networking;
+package com.styluslabs.tangram.networking;
 
-//import com.mapzen.tangram.MapController;
-//import com.mapzen.tangram.MapView;
+//import com.styluslabs.tangram.MapController;
+//import com.styluslabs.tangram.MapView;
 
 import java.io.IOException;
 

@@ -1,4 +1,4 @@
-package com.mapzen.tangram.android;
+package com.styluslabs.tangram.android;
 
 import android.content.Context;
 import android.util.AttributeSet;

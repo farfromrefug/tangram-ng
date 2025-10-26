@@ -1,4 +1,4 @@
-package com.mapzen.tangram;
+package com.styluslabs.tangram;
 
 import android.content.Context;
 import android.opengl.GLSurfaceView;
@@ -9,11 +9,11 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.widget.FrameLayout;
 
-import com.mapzen.tangram.networking.DefaultHttpHandler;
-import com.mapzen.tangram.networking.HttpHandler;
-import com.mapzen.tangram.viewholder.GLSurfaceViewHolderFactory;
-import com.mapzen.tangram.viewholder.GLViewHolder;
-import com.mapzen.tangram.viewholder.GLViewHolderFactory;
+import com.styluslabs.tangram.networking.DefaultHttpHandler;
+import com.styluslabs.tangram.networking.HttpHandler;
+import com.styluslabs.tangram.viewholder.GLSurfaceViewHolderFactory;
+import com.styluslabs.tangram.viewholder.GLViewHolder;
+import com.styluslabs.tangram.viewholder.GLViewHolderFactory;
 
 import java.lang.ref.WeakReference;
 

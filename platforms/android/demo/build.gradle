@@ -2,12 +2,12 @@ apply plugin: 'com.android.application'
 
 android {
   compileSdkVersion 34
-  namespace 'com.mapzen.tangram.android'
+  namespace 'com.styluslabs.tangram.android'
 
   //def apiKey = project.hasProperty('nextzenApiKey') ? nextzenApiKey : System.getenv('NEXTZEN_API_KEY')
 
   defaultConfig {
-    applicationId 'com.mapzen.tangram.android'
+    applicationId 'com.styluslabs.tangram.android'
     versionCode 2
     versionName '1.1'
     minSdkVersion 21

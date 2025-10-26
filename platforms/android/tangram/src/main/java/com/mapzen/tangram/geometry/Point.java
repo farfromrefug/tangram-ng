@@ -1,6 +1,6 @@
-package com.mapzen.tangram.geometry;
+package com.styluslabs.tangram.geometry;
 
-import com.mapzen.tangram.LngLat;
+import com.styluslabs.tangram.LngLat;
 
 import java.util.Map;
 

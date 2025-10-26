@@ -1,3 +1,3 @@
-adb uninstall com.mapzen.tangram.android
+adb uninstall com.styluslabs.tangram.android
 adb install demo/build/outputs/apk/debug/demo-debug.apk
-adb shell am start -a android.intent.action.MAIN -n com.mapzen.tangram.android/.MainActivity
+adb shell am start -a android.intent.action.MAIN -n com.styluslabs.tangram.android/.MainActivity

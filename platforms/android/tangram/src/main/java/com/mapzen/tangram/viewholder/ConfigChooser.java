@@ -11,7 +11,7 @@
  * governing permissions and limitations under the License.
  */
 
-package com.mapzen.tangram.viewholder;
+package com.styluslabs.tangram.viewholder;
 
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;

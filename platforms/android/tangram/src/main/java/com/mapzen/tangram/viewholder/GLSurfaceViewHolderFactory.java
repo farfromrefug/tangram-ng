@@ -1,10 +1,10 @@
-package com.mapzen.tangram.viewholder;
+package com.styluslabs.tangram.viewholder;
 
 import android.content.Context;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
 
-import com.mapzen.tangram.BuildConfig;
+import com.styluslabs.tangram.BuildConfig;
 
 public class GLSurfaceViewHolderFactory implements GLViewHolderFactory {
 

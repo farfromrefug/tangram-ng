@@ -1,4 +1,4 @@
-package com.mapzen.tangram;
+package com.styluslabs.tangram;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -6,8 +6,8 @@ import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 
-import com.mapzen.tangram.geometry.Polygon;
-import com.mapzen.tangram.geometry.Polyline;
+import com.styluslabs.tangram.geometry.Polygon;
+import com.styluslabs.tangram.geometry.Polyline;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;

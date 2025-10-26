@@ -1,4 +1,4 @@
-package com.mapzen.tangram.geometry;
+package com.styluslabs.tangram.geometry;
 
 import java.util.Map;
 

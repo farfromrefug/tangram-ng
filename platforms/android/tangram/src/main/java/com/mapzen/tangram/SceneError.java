@@ -1,6 +1,6 @@
-package com.mapzen.tangram;
+package com.styluslabs.tangram;
 
-import com.mapzen.tangram.MapController.Error;
+import com.styluslabs.tangram.MapController.Error;
 
 import androidx.annotation.Keep;
 

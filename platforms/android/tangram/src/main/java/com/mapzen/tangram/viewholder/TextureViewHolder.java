@@ -1,4 +1,4 @@
-package com.mapzen.tangram.viewholder;
+package com.styluslabs.tangram.viewholder;
 
 import android.graphics.SurfaceTexture;
 import android.opengl.GLSurfaceView;
@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
-import com.mapzen.tangram.BuildConfig;
+import com.styluslabs.tangram.BuildConfig;
 
 /*
 How TextureView, SurfaceTexture, EGLSurface and gl texture related:

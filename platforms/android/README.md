@@ -1,25 +1,26 @@
 Android
 =======
 
-The recommended way use tangram-es in an Android project is to add it as a Gradle dependency. The library is hosted on Maven Central in the package 'com.mapzen.tangram'. To see all available versions, check [Maven Central](https://search.maven.org/artifact/com.mapzen.tangram/tangram).
+The recommended way use tangram-es in an Android project is to add it as a Gradle dependency. The library is hosted on Jitpack.io in the package 'com.styluslabs.tangram'. To see all available versions, check [Jitpack.io](https://jitpack.io/#farfromrefug/tangram-ng).
 
-If Maven Central is not set up as a dependency repository, add it in your project's 'build.gradle' file:
+If Jitpack.io is not set up as a dependency repository, add it in your project's 'build.gradle' file:
 
 ```
 allprojects {
   dependencies {
     repositories {
       mavenCentral()
+      maven { url 'https://jitpack.io' }
     }
   }
 }
 ```
 
-Then add tangram-es in the 'dependencies' section of your module's 'build.gradle' file:
+Then add tangram-ng in the 'dependencies' section of your module's 'build.gradle' file:
 
 ```
 dependencies {
-  implementation 'com.mapzen.tangram:tangram:$latest_version'
+  implementation 'com.styluslabs.tangram:tangram:$latest_version'
 }
 ```
 

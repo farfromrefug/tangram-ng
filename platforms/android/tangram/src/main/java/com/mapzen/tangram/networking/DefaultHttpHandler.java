@@ -1,4 +1,4 @@
-package com.mapzen.tangram.networking;
+package com.styluslabs.tangram.networking;
 
 import android.util.Log;
 
@@ -13,7 +13,7 @@ import javax.net.SocketFactory;
 
 import androidx.annotation.NonNull;
 
-//import com.mapzen.tangram.BuildConfig;
+//import com.styluslabs.tangram.BuildConfig;
 
 import okhttp3.Call;
 import okhttp3.HttpUrl;
