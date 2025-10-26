@@ -1,7 +1,5 @@
-plugins {
-    id 'com.android.library'
-    id 'maven-publish'
-}
+apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
 
 // -----------------------------------------------------------------------------
 //  Version detection from git tag
@@ -151,7 +149,7 @@ afterEvaluate {
         publications {
             // Name the publication (e.g. 'aar'); ensure it matches 'components.release' if you publish release AAR
             aar(MavenPublication) {
-                from components.release // or components.debug if you want debug
+                from components.findByName('release')
                 groupId = project.group
                 artifactId = 'tangram-ng-android'   
                 version = project.version.toString()

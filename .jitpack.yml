@@ -1,5 +1,6 @@
 jdk:
-  - openjdk11
-
+  - openjdk17
+before_install:
+   - git submodule update --init
 install:
-  - bash -lc "cd platforms/android && ./gradlew assembleRelease publishAarPublicationToMavenLocal --stacktrace"
+  - bash -lc "cd platforms/android && ./gradlew tangram:assembleRelease tangram:publishAarPublicationToMavenLocal --stacktrace"
