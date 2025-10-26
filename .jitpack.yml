@@ -1,29 +1,11 @@
 jdk:
   - openjdk17
+
 before_install:
-   - git submodule update --init
-    - bash -lc |
-      set -euo pipefail
-
-      ANDROID_SDK_ROOT="$HOME/Android/Sdk"
-      mkdir -p "$ANDROID_SDK_ROOT"
-      if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools/latest" ]; then
-        echo "Installing Android command-line tools..."
-        cd "$HOME"
-        curl -sSLo commandlinetools.zip "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
-        unzip -q commandlinetools.zip -d cmdline-tools-temp
-        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-        mv cmdline-tools-temp/cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
-        rm -rf cmdline-tools-temp commandlinetools.zip
-      else
-        echo "Command-line tools already installed"
-      fi
-
-      export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-
-      yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
-
-      sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-$ANDROID_API" "build-tools;$BUILD_TOOLS" "ndk;$ANDROID_NDK_VERSION" "cmake;$CMAKE_VERSION"
+  - git submodule update --init
+  - echo "sdk.dir=$ANDROID_HOME" > platforms/android/local.properties
+  - yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+  - ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-$ANDROID_API" "build-tools;$BUILD_TOOLS" "ndk;$ANDROID_NDK_VERSION" "cmake;$CMAKE_VERSION"
 
 install:
   - bash -lc "cd platforms/android && ./gradlew tangram:assembleRelease tangram:publishAarPublicationToMavenLocal --stacktrace"
