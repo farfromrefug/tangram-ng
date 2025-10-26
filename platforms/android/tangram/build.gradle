@@ -1,11 +1,52 @@
-apply plugin: 'com.android.library'
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+}
 
-group = 'com.mapzen.tangram'
-version = '0.17.2-SNAPSHOT'
+// -----------------------------------------------------------------------------
+//  Version detection from git tag
+// -----------------------------------------------------------------------------
+def getGitTag() {
+    // Try exact tag on HEAD first
+    try {
+        def exact = ['git', 'describe', '--tags', '--exact-match'].execute(null, rootDir)
+        exact.waitFor()
+        if (exact.exitValue() == 0) {
+            return exact.in.text.trim()
+        }
+        // Fallback to nearest tag (most recent)
+        def nearest = ['git', 'describe', '--tags', '--abbrev=0'].execute(null, rootDir)
+        nearest.waitFor()
+        if (nearest.exitValue() == 0) {
+            return nearest.in.text.trim()
+        }
+    } catch (Exception ignored) {
+        // If git isn't available for some reason, ignore and fallback below
+    }
+    return null
+}
+
+def rawTag = System.getenv('JITPACK_TAG') ?: getGitTag() // keep env var option if present
+def normalizedVersion = null
+if (rawTag) {
+    // strip common 'v' prefix: v1.2.3 -> 1.2.3
+    normalizedVersion = rawTag.replaceFirst(/^v/, '')
+}
+// Fallback version for branch/commit builds
+if (!normalizedVersion) {
+    // you can choose commit hash or snapshot form
+    def commit = System.getenv('JITPACK_COMMIT')
+    normalizedVersion = commit ? "0.0.0-${commit.substring(0,7)}" : '0.0.0-SNAPSHOT'
+}
+
+project.version = normalizedVersion
+project.group = 'com.styluslabs.tangram'
+
+println "Project version set to ${project.version}"
 
 android {
   compileSdkVersion 36
-  namespace 'com.mapzen.tangram'
+  namespace project.group
 
   // Specific ABI targets can be chosen with the 'abis' property as a comma-separated list of ABIs.
   // From the command line, add '-Ptangram.abis=armeabi-v7a,x86,...' to only build those ABIs.
@@ -18,6 +59,10 @@ android {
   defaultConfig {
     minSdkVersion 21
     targetSdkVersion 36
+
+    // Keep versionName in sync with project.version
+    versionName project.version
+
     consumerProguardFiles 'tangram-proguard-rules.txt'
     buildConfigField 'String', 'TAG', '"Tangram"'
     externalNativeBuild {
@@ -97,4 +142,20 @@ dependencies {
   implementation 'androidx.annotation:annotation:1.1.0'
 }
 
-//apply from: 'publishing.gradle'
+
+// -----------------------------------------------------------------------------
+//  Maven publish using project.version (so JitPack's tag is used)
+// -----------------------------------------------------------------------------
+afterEvaluate {
+    publishing {
+        publications {
+            // Name the publication (e.g. 'aar'); ensure it matches 'components.release' if you publish release AAR
+            aar(MavenPublication) {
+                from components.release // or components.debug if you want debug
+                groupId = project.group
+                artifactId = 'tangram-ng-android'   
+                version = project.version.toString()
+            }
+        }
+    }
+}
