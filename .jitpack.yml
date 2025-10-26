@@ -14,7 +14,7 @@ before_install:
 
   - echo "sdk.dir=$ANDROID_HOME" > platforms/android/local.properties
   - yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
-  - ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-$ANDROID_API" "build-tools;$BUILD_TOOLS" "ndk;$ANDROID_NDK_VERSION" "cmake;$CMAKE_VERSION"
+  - ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-$ANDROID_API" "build-tools;$BUILD_TOOLS" "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION"
 
 install:
   - bash -lc "cd platforms/android && ./gradlew tangram:assembleRelease tangram:publishAarPublicationToMavenLocal --stacktrace"
