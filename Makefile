@@ -25,6 +25,9 @@ all: android osx ios
 .PHONY: ios-swift-sim
 .PHONY: ios-framework
 .PHONY: ios-framework-sim
+.PHONY: ios-framework-vos-sim
+.PHONY: ios-framework-vos
+.PHONY: ios-framework-catalyst
 .PHONY: ios-framework-universal
 .PHONY: ios-docs
 .PHONY: rpi
@@ -215,16 +218,33 @@ cmake-ios:
 	cmake -H. -B${IOS_BUILD_DIR} ${IOS_CMAKE_PARAMS}
 
 ios-framework: cmake-ios
-	xcodebuild -workspace platforms/ios/Tangram.xcworkspace -scheme TangramMap -configuration ${BUILD_TYPE} -sdk iphoneos ${XCPRETTY}
+	xcodebuild -workspace platforms/ios/Tangram.xcworkspace -scheme TangramMap -configuration ${BUILD_TYPE} -destination "generic/platform=iOS" ${XCPRETTY}
 
 ios-framework-sim: cmake-ios
-	xcodebuild -workspace platforms/ios/Tangram.xcworkspace -scheme TangramMap -configuration ${BUILD_TYPE} -sdk iphonesimulator ${XCPRETTY}
+	xcodebuild -workspace platforms/ios/Tangram.xcworkspace -scheme TangramMap -configuration ${BUILD_TYPE} -destination "generic/platform=iOS Simulator" ${XCPRETTY}
 
-ios-xcframework: ios-framework ios-framework-sim
+ios-framework-catalyst: cmake-ios
+	xcodebuild -workspace platforms/ios/Tangram.xcworkspace -scheme TangramMap -configuration ${BUILD_TYPE} -destination "generic/platform=macOS,variant=Mac Catalyst" ${XCPRETTY}
+
+ios-framework-vos: cmake-ios
+	xcodebuild -workspace platforms/ios/Tangram.xcworkspace -scheme TangramMap -configuration ${BUILD_TYPE} -destination "generic/platform=visionOS" ${XCPRETTY}
+
+ios-framework-vos-sim: cmake-ios
+	xcodebuild -workspace platforms/ios/Tangram.xcworkspace -scheme TangramMap -configuration ${BUILD_TYPE} -destination "generic/platform=visionOS Simulator" ${XCPRETTY}
+
+ios-xcframework: ios-framework ios-framework-sim ios-framework-vos ios-framework-vos-sim ios-framework-catalyst
 	rm -rf ${IOS_BUILD_DIR}/${BUILD_TYPE}/TangramMap.xcframework
 	xcodebuild -create-xcframework \
-		-framework ${IOS_BUILD_DIR}/${BUILD_TYPE}-iphoneos/TangramMap.framework \
-		-framework ${IOS_BUILD_DIR}/${BUILD_TYPE}-iphonesimulator/TangramMap.framework \
+		-framework     ${IOS_BUILD_DIR}/${BUILD_TYPE}-iphoneos/TangramMap.framework \
+		-debug-symbols ${IOS_BUILD_DIR}/${BUILD_TYPE}-iphoneos/TangramMap.framework.dSYM \
+		-framework     ${IOS_BUILD_DIR}/${BUILD_TYPE}-iphonesimulator/TangramMap.framework \
+		-debug-symbols ${IOS_BUILD_DIR}/${BUILD_TYPE}-iphonesimulator/TangramMap.framework.dSYM \
+		-framework     ${IOS_BUILD_DIR}/${BUILD_TYPE}-maccatalyst/TangramMap.framework \
+		-debug-symbols ${IOS_BUILD_DIR}/${BUILD_TYPE}-maccatalyst/TangramMap.framework.dSYM \
+		-framework     ${IOS_BUILD_DIR}/${BUILD_TYPE}-xrsimulator/TangramMap.framework \
+		-debug-symbols ${IOS_BUILD_DIR}/${BUILD_TYPE}-xrsimulator/TangramMap.framework.dSYM \
+		-framework     ${IOS_BUILD_DIR}/${BUILD_TYPE}-xros/TangramMap.framework \
+		-debug-symbols ${IOS_BUILD_DIR}/${BUILD_TYPE}-xros/TangramMap.framework.dSYM \
 		-output ${IOS_BUILD_DIR}/${BUILD_TYPE}/TangramMap.xcframework
 
 ios-static: cmake-ios

@@ -20,7 +20,7 @@
     "89BF49097CBE9539E080B51BBEECD090377E3AE9" : "tangram-es\/core\/deps\/alfons\/",
     "712FCE76DAFCD7A92374B4096CF7B4A564C64796" : "tangram-es\/core\/deps\/duktape\/",
     "98B5F1E9F1D4B271DC50DD42EDC5C62672F9C845" : "tangram-es\/core\/deps\/harfbuzz-icu-freetype\/",
-    "B81FCB83F310D0FE579C2C036BB1B65DBEA68F32" : "tangram-es\/core\/deps\/yaml-cpp\/"
+    "B81FCB83F310D0FE579C2C036BB1B65DBEA68F32" : "tangram-es\/core\/deps\/gaml\/"
   },
   "DVTSourceControlWorkspaceBlueprintNameKey" : "Tangram",
   "DVTSourceControlWorkspaceBlueprintVersion" : 204,
@@ -47,12 +47,12 @@
       "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "98B5F1E9F1D4B271DC50DD42EDC5C62672F9C845"
     },
     {
-      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/tangrams\/yaml-cpp",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/styluslabs\/tangram-ng.git",
       "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
       "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "B81FCB83F310D0FE579C2C036BB1B65DBEA68F32"
     },
     {
-      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/tangrams\/tangram-es.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/styluslabs\/tangram-ng.git",
       "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
       "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "BEF4CD3BF6A9DF306C3773D17F039B2DC1C72614"
     },
