@@ -2,6 +2,4 @@ jdk:
   - openjdk11
 
 install:
-  # Build and publish the android module's Maven publication to Maven Local so JitPack can pick it up.
-  # Adjust the publication+repository task name if your publication name differs.
-  - ./gradlew :platforms:android:assembleRelease :platforms:android:publishAarPublicationToMavenLocal --stacktrace
+  - bash -lc "cd platforms/android && ./gradlew assembleRelease publishAarPublicationToMavenLocal --stacktrace"
