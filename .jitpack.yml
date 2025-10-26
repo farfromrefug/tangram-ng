@@ -2,7 +2,16 @@ jdk:
   - openjdk17
 
 before_install:
-  - git submodule update --init
+  - git submodule update --init --recursive
+  - echo "Installing Android command-line tools..."
+  - curl -sSLo /tmp/commandlinetools.zip "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
+  - unzip -q /tmp/commandlinetools.zip -d /tmp/cmdline-tools
+  - mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+  - mv /tmp/cmdline-tools/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/" || true
+  - rm -rf /tmp/commandlinetools.zip /tmp/cmdline-tools
+
+  - export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+
   - echo "sdk.dir=$ANDROID_HOME" > platforms/android/local.properties
   - yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
   - ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-$ANDROID_API" "build-tools;$BUILD_TOOLS" "ndk;$ANDROID_NDK_VERSION" "cmake;$CMAKE_VERSION"
