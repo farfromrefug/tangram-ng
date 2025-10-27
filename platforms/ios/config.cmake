@@ -1,11 +1,12 @@
 add_definitions(-DTANGRAM_IOS)
+add_definitions(-DGLES_SILENCE_DEPRECATION)
 
 set(TANGRAM_FRAMEWORK_VERSION "0.17.2-dev")
 set(TANGRAM_BUNDLE_IDENTIFIER "com.mapzen.TangramMap")
 
 ### Configure iOS toolchain.
 set(CMAKE_OSX_DEPLOYMENT_TARGET "9.3") # Applies to iOS even though the variable name says OSX.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden -Wno-shorten-64-to-32")
 execute_process(COMMAND xcrun --sdk iphoneos --show-sdk-version OUTPUT_VARIABLE IOS_SDK_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
 # Set the global BITCODE_GENERATION_MODE value to 'bitcode' for Release builds.
 # This is for generating full bitcode outside of the "archive" command.
@@ -101,6 +102,7 @@ set(TANGRAM_FRAMEWORK_SOURCES
   platforms/common/appleAllowedFonts.h
   platforms/common/appleAllowedFonts.mm
   platforms/common/platform_gl.cpp
+  platforms/common/user_fns.cpp
   platforms/ios/framework/src/iosPlatform.h
   platforms/ios/framework/src/iosPlatform.mm
   platforms/ios/framework/src/TGCameraPosition+Internal.h
@@ -145,8 +147,16 @@ target_link_libraries(TangramMap PRIVATE
 )
 
 target_include_directories(TangramMap PRIVATE
+  core/deps/stb
+  core/deps/glm
+  core/deps/isect2d/include
   platforms/common
+  core/deps/yaml-cpp/include
 )
+
+target_compile_definitions(TangramMap PRIVATE TANGRAM_IOS_MAPVIEW=1)
+target_compile_definitions(TangramMap PRIVATE GLM_FORCE_CTOR_INIT)
+target_compile_definitions(TangramMap PRIVATE GLES_SILENCE_DEPRECATION)
 
 set_target_properties(TangramMap PROPERTIES
   FRAMEWORK TRUE
@@ -207,8 +217,11 @@ set(TANGRAM_STATIC_DEPENDENCIES "\
   $<TARGET_FILE:miniz>
   "
 )
+
 if(NOT TANGRAM_USE_FONTCONTEXT_STB)
   set(TANGRAM_STATIC_DEPENDENCIES "${TANGRAM_STATIC_DEPENDENCIES} $<TARGET_FILE:alfons> $<TARGET_FILE:linebreak>  $<TARGET_FILE:harfbuzz> $<TARGET_FILE:freetype> $<TARGET_FILE:icucommon>")
+else() 
+  # add_definitions(-DFONTSTASH_IMPLEMENTATION)
 endif()
 if(NOT TANGRAM_USE_JSCORE)
   set(TANGRAM_STATIC_DEPENDENCIES "${TANGRAM_STATIC_DEPENDENCIES} $<TARGET_FILE:duktape>")
@@ -231,7 +244,7 @@ set_target_properties(TangramMap tangram-static PROPERTIES
   XCODE_GENERATE_SCHEME TRUE
   XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "${TANGRAM_FRAMEWORK_VERSION}"
   XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"
-  XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++20"
+  XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++17"
   XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++"
   XCODE_ATTRIBUTE_GCC_TREAT_WARNINGS_AS_ERRORS "YES"
   # Generate dsym for all build types to ensure symbols are available in profiling.

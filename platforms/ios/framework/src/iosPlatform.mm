@@ -10,6 +10,10 @@
 #include <cstdlib>
 #include <map>
 
+// need to be defined but not used
+void TANGRAM_WakeEventLoop() {}
+
+
 namespace Tangram {
 
 void logStr(const std::string& msg) { fputs(msg.c_str(), stderr); }

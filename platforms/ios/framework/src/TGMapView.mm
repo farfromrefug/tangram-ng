@@ -24,6 +24,11 @@
 #import "TGTypes+Internal.h"
 #import <GLKit/GLKit.h>
 
+#include <OpenGLES/ES3/gl.h>
+#include <OpenGLES/ES3/glext.h>
+
+#include "util/elevationManager.h"
+#include "util/asyncWorker.h"
 #include "data/clientDataSource.h"
 #include "data/propertyItem.h"
 #include "iosPlatform.h"
@@ -58,9 +63,13 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     BOOL _prevMapViewComplete;
     BOOL _viewInBackground;
     BOOL _renderRequested;
+    GLuint _colorRenderBuffer, _depthRenderBuffer, _msaaRenderBuffer;
+      GLuint _frameBuffer, _msaaFrameBuffer;
+    int width, height, samples;
 }
 
 @property (nullable, strong, nonatomic) EAGLContext *context;
+@property (nullable, strong, nonatomic) EAGLContext *context2;
 @property (strong, nonatomic) GLKView *glView;
 @property (strong, nonatomic) CADisplayLink *displayLink;
 @property (strong, nonatomic) NSMutableDictionary<NSString *, TGMarker *> *markersById;
@@ -116,6 +125,7 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
         [_displayLink invalidate];
     }
     [self invalidateContext];
+    [self destroyBuffers];
 }
 
 - (void)setup
@@ -139,6 +149,8 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
                                name:UIApplicationDidBecomeActiveNotification
                              object:nil];
 
+    width = 0;
+    height = 0;
     _prevMapViewComplete = NO;
     _captureFrameWaitForViewComplete = YES;
     _shouldCaptureFrame = NO;
@@ -156,7 +168,7 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     self.opaque = YES;
     self.autoresizesSubviews = YES;
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-
+    self.multipleTouchEnabled = YES;
     if (!_urlHandler) {
         _urlHandler = [[TGDefaultURLHandler alloc] init];
     }
@@ -206,16 +218,50 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     }
 }
 
+// this should be called from a thread
+- (void)createSharedContext
+{
+  // seems there can be a deadlock between creating shared context on worker thread and using main context
+  //  on main thread, so we have to create shared context on main thread too
+  //EAGLContext* _context2 = [[EAGLContext alloc] initWithAPI:[_context API] sharegroup:[_context sharegroup]];
+  if (!_context2) {
+      NSLog(@"Failed to create shared OpenGL context");
+  } else if (![EAGLContext setCurrentContext:_context2]) {
+      NSLog(@"setCurrentContext failed for shared OpenGL context");
+  }
+}
+
 - (void)setupGL
 {
-    _context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-
+    _context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
+    if(samples > 1) { samples = 4; }
     if (!_context) {
         NSLog(@"Failed to create GLES context");
         return;
     }
+    
+    _context2 = [[EAGLContext alloc] initWithAPI:[_context API] sharegroup:[_context sharegroup]];
+      if (![EAGLContext setCurrentContext:_context]) {
+          _context = nil;
+          NSLog(@"Failed to set current OpenGL context");
+          return;
+      }
+    
 
     _glView = [[GLKView alloc] initWithFrame:self.bounds context:_context];
+    ((CAEAGLLayer*)_glView.layer).drawableProperties = [NSDictionary dictionaryWithObjectsAndKeys:
+              [NSNumber numberWithBool:NO], kEAGLDrawablePropertyRetainedBacking,
+              kEAGLColorFormatRGBA8, kEAGLDrawablePropertyColorFormat, nil];
+    
+    auto offscreenWorker = std::make_unique<Tangram::AsyncWorker>("Offscreen GL worker");
+    offscreenWorker->enqueue([&self](){ [self createSharedContext]; });
+    Tangram::ElevationManager::offscreenWorker = std::move(offscreenWorker);
+    
+    glGenRenderbuffers(1, &_colorRenderBuffer);
+    glGenRenderbuffers(1, &_depthRenderBuffer);
+    glGenRenderbuffers(1, &_msaaRenderBuffer);
+    glGenFramebuffers(1, &_frameBuffer);
+    glGenFramebuffers(1, &_msaaFrameBuffer);
 
     _glView.drawableColorFormat = GLKViewDrawableColorFormatRGBA8888;
     _glView.drawableDepthFormat = GLKViewDrawableDepthFormat24;
@@ -240,6 +286,61 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     _map->setPixelScale(_glView.contentScaleFactor);
 
     [self trySetMapDefaultBackground:self.backgroundColor];
+}
+
+- (void)setupBuffers
+{
+  glBindRenderbuffer(GL_RENDERBUFFER, _colorRenderBuffer);
+  [_context renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer*)(_glView.layer)];
+
+  glBindFramebuffer(GL_FRAMEBUFFER, _frameBuffer);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _colorRenderBuffer);
+
+  glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &width);
+  glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &height);
+
+  // multisample buffer
+  if (samples > 1) {
+    glBindFramebuffer(GL_FRAMEBUFFER, _msaaFrameBuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, _msaaRenderBuffer);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_RGBA8, width, height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _msaaRenderBuffer);
+  }
+
+  // depth,stencil buffer
+  glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderBuffer);
+  glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH24_STENCIL8, width, height);
+  //glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _depthRenderBuffer);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, _depthRenderBuffer);
+
+  glBindRenderbuffer(GL_RENDERBUFFER, _colorRenderBuffer);
+  if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    NSLog(@"Error creating GLES framebuffer.");
+}
+
+- (void)destroyBuffers
+{
+  glDeleteFramebuffers(1, &_frameBuffer);
+  glDeleteFramebuffers(1, &_msaaFrameBuffer);
+  _frameBuffer = 0; _msaaFrameBuffer = 0;
+  glDeleteRenderbuffers(1, &_depthRenderBuffer);
+  glDeleteRenderbuffers(1, &_colorRenderBuffer);
+  glDeleteRenderbuffers(1, &_msaaRenderBuffer);
+  _depthRenderBuffer = 0; _colorRenderBuffer = 0; _msaaRenderBuffer = 0;
+}
+
+- (void)swapBuffers
+{
+  if (samples > 1) {
+    const GLenum attachments[] = {GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _frameBuffer);
+    glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glInvalidateFramebuffer(GL_READ_FRAMEBUFFER, 3, attachments);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _msaaFrameBuffer);
+  }
+  glBindRenderbuffer(GL_RENDERBUFFER, _colorRenderBuffer);  // make sure correct renderbuffer is bound
+  [_context presentRenderbuffer:GL_RENDERBUFFER];
 }
 
 - (void)setupDisplayLink
@@ -315,6 +416,14 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
 - (void)layoutSubviews
 {
     [super layoutSubviews];
+    int w = (int)(self.bounds.size.width * self.contentScaleFactor);
+      int h = (int)(self.bounds.size.height * self.contentScaleFactor);
+    if(w != width || h != height) {
+        width = h;
+        height = h;
+        [self validateContext];
+        [self setupBuffers];
+    }
 
     CGSize size = self.bounds.size;
     self.map->resize(size.width * self.contentScaleFactor, size.height * self.contentScaleFactor);
@@ -389,6 +498,7 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
         if (mapState.isAnimating()) {
             [self requestRender];
         }
+        [self swapBuffers];
     }
 }
 
@@ -1079,6 +1189,7 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
     if ([self.gestureDelegate respondsToSelector:@selector(mapView:recognizer:shouldRecognizeDoubleTapGesture:)]) {
         if (![self.gestureDelegate mapView:self recognizer:doubleTapRecognizer shouldRecognizeDoubleTapGesture:location]) { return; }
     }
+    self.map->handleDoubleTapGesture(location.x, location.y);
 
     if ([self.gestureDelegate respondsToSelector:@selector(mapView:recognizer:didRecognizeDoubleTapGesture:)]) {
         [self.gestureDelegate mapView:self recognizer:doubleTapRecognizer didRecognizeDoubleTapGesture:location];
@@ -1300,6 +1411,7 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
             break;
     }
     _currentState = state;
+    [self requestRender];
 }
 
 - (void)regionWillChangeAnimated:(BOOL)animated
