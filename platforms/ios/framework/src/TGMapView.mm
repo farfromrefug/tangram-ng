@@ -57,6 +57,169 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     TGMapRegionAnimating,
 };
 
+//
+// DoubleTapDragGestureRecognizer
+// Recognizes a double-tap where the second tap is held and dragged.
+// It FAILS if the second tap is lifted without sufficient movement so that the normal
+// double-tap recognizer can fire on a lifted double-tap.
+//
+// Place this above the @implementation TGMapView in TGMapView.mm
+//
+
+@interface DoubleTapDragGestureRecognizer : UIGestureRecognizer
+@property (nonatomic, assign) CGPoint secondTapStartLocation;
+- (CGPoint)translationInView:(UIView *)view;
+@end
+
+@implementation DoubleTapDragGestureRecognizer {
+    // internal state
+    NSTimeInterval _firstTapTimestamp;
+    CGPoint _firstTapLocation;
+    BOOL _waitingForSecondTap; // we observed a first tap and are waiting for the second
+    BOOL _secondTouchDown;     // second finger is currently down
+    CGFloat _movementSlop;
+    NSTimeInterval _maxIntervalBetweenTaps;
+}
+
+- (instancetype)initWithTarget:(id)target action:(SEL)action {
+    if (self = [super initWithTarget:target action:action]) {
+        _waitingForSecondTap = NO;
+        _secondTouchDown = NO;
+        _movementSlop = 8.0; // points before we consider it a drag
+        _maxIntervalBetweenTaps = 0.35; // typical double-tap max interval
+        self.cancelsTouchesInView = NO;
+    }
+    return self;
+}
+
+- (void)reset {
+    [super reset];
+    _waitingForSecondTap = NO;
+    _secondTouchDown = NO;
+    _firstTapTimestamp = 0;
+    _firstTapLocation = CGPointZero;
+    self.secondTapStartLocation = CGPointZero;
+}
+
+// convenience
+- (CGPoint)locationForTouches:(NSSet<UITouch *> *)touches {
+    UITouch *touch = [touches anyObject];
+    return [touch locationInView:self.view];
+}
+
+- (CGPoint)translationInView:(UIView *)view {
+    if (!view) view = self.view;
+    if (!_secondTouchDown) return CGPointZero;
+    CGPoint current = [self locationInView:view];
+    return CGPointMake(current.x - self.secondTapStartLocation.x, current.y - self.secondTapStartLocation.y);
+}
+
+#pragma mark - Touch handling
+
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    // Only single-finger sequences are supported
+    if ([touches count] != 1 || [event allTouches].count != 1) {
+        // if extra touches appear, fail
+        self.state = UIGestureRecognizerStateFailed;
+        return;
+    }
+
+    NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+
+    if (!_waitingForSecondTap) {
+        // This is the first tap down. We don't immediately assume anything until we see its end.
+        _firstTapTimestamp = now;
+        _firstTapLocation = [self locationForTouches:touches];
+        // Set possible and wait for touchesEnded to confirm first tap completed.
+        self.state = UIGestureRecognizerStatePossible;
+        return;
+    }
+
+    // If we were waiting for the second tap and a new touchesBegan arrives:
+    NSTimeInterval delta = now - _firstTapTimestamp;
+    if (_waitingForSecondTap && delta <= _maxIntervalBetweenTaps) {
+        // This is the second tap down. Start monitoring movement for drag.
+        _secondTouchDown = YES;
+        self.secondTapStartLocation = [self locationForTouches:touches];
+        // stay in Possible until movement exceeds slop
+        self.state = UIGestureRecognizerStatePossible;
+        return;
+    }
+
+    // Too slow or unexpected: fail
+    self.state = UIGestureRecognizerStateFailed;
+}
+
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    if (!_secondTouchDown) {
+        // Not in second-tap hold; ignore moves but stay possible (we'll fail on touchesEnded if needed)
+        return;
+    }
+
+    CGPoint current = [self locationForTouches:touches];
+    CGFloat dx = current.x - self.secondTapStartLocation.x;
+    CGFloat dy = current.y - self.secondTapStartLocation.y;
+    CGFloat dist = sqrt(dx*dx + dy*dy);
+
+    if (dist >= _movementSlop) {
+        if (self.state == UIGestureRecognizerStatePossible) {
+            self.state = UIGestureRecognizerStateBegan;
+        } else if (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged) {
+            self.state = UIGestureRecognizerStateChanged;
+        }
+    }
+}
+
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    // If we are in a recognized drag (Began/Changed), end it
+    if (self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged) {
+        self.state = UIGestureRecognizerStateEnded;
+        [self reset];
+        return;
+    }
+
+    // If we were waiting for the second tap and the second tap never produced movement,
+    // fail here so the normal double-tap recognizer can recognize the lifted double-tap.
+    if (_waitingForSecondTap && !_secondTouchDown) {
+        // touchesEnded for the first tap: mark waiting for second tap
+        // If this ended is from the first tap, keep waiting (this is handled by _waitingForSecondTap toggle below)
+        // However, if we are here without secondTouchDown and state still Possible, that means the user lifted
+        // second tap without movement -> fail.
+        self.state = UIGestureRecognizerStateFailed;
+        [self reset];
+        return;
+    }
+
+    // If this touchesEnded corresponds to the first tap (i.e., we had a first tap down and just lifted),
+    // mark that we are waiting for the second tap for a short interval.
+    if (!_waitingForSecondTap) {
+        _waitingForSecondTap = YES;
+        // keep the gesture possible until the next touchesBegan or the interval times out.
+        // schedule a timeout to clear waiting state
+        NSTimeInterval maxInterval = _maxIntervalBetweenTaps;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(maxInterval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            // If still waiting and no second tap arrived, clear and fail the recognizer
+            if (self.state == UIGestureRecognizerStatePossible && _waitingForSecondTap && !_secondTouchDown) {
+                self.state = UIGestureRecognizerStateFailed;
+                [self reset];
+            }
+        });
+        // Do NOT set state to Failed yet; allow the second touchesBegan to arrive.
+        return;
+    }
+
+    // Safety fallback
+    self.state = UIGestureRecognizerStateFailed;
+    [self reset];
+}
+
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    self.state = UIGestureRecognizerStateCancelled;
+    [self reset];
+}
+
+@end
+
 @interface TGMapView () <UIGestureRecognizerDelegate, GLKViewDelegate> {
     BOOL _shouldCaptureFrame;
     BOOL _captureFrameWaitForViewComplete;
@@ -66,6 +229,13 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     GLuint _colorRenderBuffer, _depthRenderBuffer, _msaaRenderBuffer;
       GLuint _frameBuffer, _msaaFrameBuffer;
     int width, height, samples;
+    
+    BOOL _panZoomMode;
+    NSTimer* _panZoomModeTimer;
+    CGFloat _panZoomStartZoom;
+    CGPoint _panZoomStartPoint;
+    
+    DoubleTapDragGestureRecognizer *_doubleTapDragRecognizer;
 }
 
 @property (nullable, strong, nonatomic) EAGLContext *context;
@@ -81,6 +251,11 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
 @end // interface TGMapView
 
 @implementation TGMapView
+
+// --- Add constants near the top of the file (or just above @implementation) ---
+static const NSTimeInterval kPanZoomModeDuration = 0.8; // seconds pan-zoom stays armed after double-tap
+static const CGFloat kPanZoomSensitivity = 0.005f; // zoom units per screen point of vertical drag
+
 
 @synthesize displayLink = _displayLink;
 
@@ -368,6 +543,17 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     _doubleTapGestureRecognizer.numberOfTapsRequired = 2;
     // Ignore single tap when double tap occurs
     [_tapGestureRecognizer requireGestureRecognizerToFail:_doubleTapGestureRecognizer];
+    
+    _doubleTapDragRecognizer = [[DoubleTapDragGestureRecognizer alloc] initWithTarget:self action:@selector(respondToDoubleTapDragGesture:)];
+    _doubleTapDragRecognizer.delegate = self;
+
+    // Ensure normal single-tap waits for a double tap to fail
+    [_tapGestureRecognizer requireGestureRecognizerToFail:_doubleTapGestureRecognizer];
+
+    // Ensure the normal double-tap recognizer waits for the drag variant to fail.
+    // This allows the drag recognizer to win if the user holds and drags on the second tap.
+    [_doubleTapGestureRecognizer requireGestureRecognizerToFail:_doubleTapDragRecognizer];
+
 
     _panGestureRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(respondToPanGesture:)];
     _panGestureRecognizer.maximumNumberOfTouches = 2;
@@ -391,6 +577,7 @@ typedef NS_ENUM(NSInteger, TGMapRegionChangeState) {
     [self addGestureRecognizer:_rotationGestureRecognizer];
     [self addGestureRecognizer:_shoveGestureRecognizer];
     [self addGestureRecognizer:_longPressGestureRecognizer];
+    [self addGestureRecognizer:_doubleTapDragRecognizer];
 }
 
 #pragma mark UIView methods
@@ -1154,10 +1341,61 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
     if ([gestureRecognizer isEqual:_shoveGestureRecognizer] || [otherGestureRecognizer isEqual:_shoveGestureRecognizer]) {
         return NO;
     }
+
+    // If pan-zoom mode is active, avoid simultaneous pinch+pan so pinch doesn't override the zooming behavior.
+   if (_panZoomMode) {
+       if ((gestureRecognizer == _panGestureRecognizer && otherGestureRecognizer == _pinchGestureRecognizer) ||
+           (gestureRecognizer == _pinchGestureRecognizer && otherGestureRecognizer == _panGestureRecognizer)) {
+           return NO;
+       }
+   }
     return YES;
 }
 
 #pragma mark - Gesture Responders
+
+- (void)respondToDoubleTapDragGesture:(DoubleTapDragGestureRecognizer *)dragRecognizer
+{
+    // When dragRecognizer enters Began, arm pan-zoom; while Changed, update zoom; on Ended disable pan-zoom.
+    if (dragRecognizer.state == UIGestureRecognizerStateBegan) {
+        // Begin pan-zoom mode
+        _panZoomMode = YES;
+        _panZoomStartZoom = self.zoom;
+        _panZoomStartPoint = dragRecognizer.secondTapStartLocation;
+
+        // Cancel any pending timer used when arming pan-zoom from lift-based double-tap (if you used one)
+        if (_panZoomModeTimer) {
+            [_panZoomModeTimer invalidate];
+            _panZoomModeTimer = nil;
+        }
+
+        // Optionally prevent pinch from recognizing simultaneously while in pan-zoom mode (tweak in delegate below)
+    } else if (dragRecognizer.state == UIGestureRecognizerStateChanged) {
+        // Compute translation from the second tap start point
+        CGPoint translation = [dragRecognizer translationInView:self];
+
+        // Use vertical movement to drive zoom; negative dy -> zoom in
+        static const CGFloat dragZoomSensitivity = 0.005f; // tweak to taste (zoom units per point)
+        CGFloat dy = translation.y;
+        CGFloat newZoom = _panZoomStartZoom - dy * dragZoomSensitivity;
+
+        // clamp
+        newZoom = MIN(MAX(newZoom, self.minimumZoomLevel), self.maximumZoomLevel);
+
+        // Apply zoom (instant) while dragging
+        [self setZoom:newZoom];
+
+    } else if (dragRecognizer.state == UIGestureRecognizerStateEnded ||
+               dragRecognizer.state == UIGestureRecognizerStateCancelled ||
+               dragRecognizer.state == UIGestureRecognizerStateFailed) {
+        // End pan-zoom mode
+        _panZoomMode = NO;
+        if (_panZoomModeTimer) {
+            [_panZoomModeTimer invalidate];
+            _panZoomModeTimer = nil;
+        }
+    }
+}
 
 - (void)respondToLongPressGesture:(UILongPressGestureRecognizer *)longPressRecognizer
 {
@@ -1189,16 +1427,57 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
     if ([self.gestureDelegate respondsToSelector:@selector(mapView:recognizer:shouldRecognizeDoubleTapGesture:)]) {
         if (![self.gestureDelegate mapView:self recognizer:doubleTapRecognizer shouldRecognizeDoubleTapGesture:location]) { return; }
     }
-    self.map->handleDoubleTapGesture(location.x, location.y);
+    
+    self.map->handleDoubleTapGesture(location.x * self.contentScaleFactor, location.y * self.contentScaleFactor);
+    // Disable pan-zoom mode after a short window if user doesn't start panning
+    _panZoomModeTimer = [NSTimer scheduledTimerWithTimeInterval:kPanZoomModeDuration
+                                                         target:self
+                                                       selector:@selector(disablePanZoomMode)
+                                                       userInfo:nil
+                                                        repeats:NO];
 
     if ([self.gestureDelegate respondsToSelector:@selector(mapView:recognizer:didRecognizeDoubleTapGesture:)]) {
         [self.gestureDelegate mapView:self recognizer:doubleTapRecognizer didRecognizeDoubleTapGesture:location];
     }
 }
 
+// --- Helper to turn off the mode ---
+- (void)disablePanZoomMode
+{
+    _panZoomMode = NO;
+    if (_panZoomModeTimer) {
+        [_panZoomModeTimer invalidate];
+        _panZoomModeTimer = nil;
+    }
+}
+
 - (void)respondToPanGesture:(UIPanGestureRecognizer *)panRecognizer
 {
     CGPoint displacement = [panRecognizer translationInView:self];
+    
+    // If we're armed for pan-to-zoom, interpret vertical pan as zoom change
+       if (_panZoomMode) {
+       CGPoint translation = [panRecognizer translationInView:self];
+
+       // Use vertical motion to change zoom; negative dy (drag up) -> zoom in
+       CGFloat dy = translation.y;
+       CGFloat newZoom = _panZoomStartZoom - dy * kPanZoomSensitivity;
+
+       // Clamp zoom
+       newZoom = MIN(MAX(newZoom, self.minimumZoomLevel), self.maximumZoomLevel);
+
+       // Apply zoom immediately (keeps other camera properties)
+       [self setZoom:newZoom];
+
+       // If the pan ended, stop pan-zoom mode
+       if (panRecognizer.state == UIGestureRecognizerStateEnded ||
+           panRecognizer.state == UIGestureRecognizerStateCancelled ||
+           panRecognizer.state == UIGestureRecognizerStateFailed) {
+           [self disablePanZoomMode];
+       }
+       // Do not forward this gesture to normal panning while in pan-zoom mode
+       return;
+   }
 
     if ([self.gestureDelegate respondsToSelector:@selector(mapView:recognizer:shouldRecognizePanGesture:)]) {
         if (![self.gestureDelegate mapView:self recognizer:panRecognizer shouldRecognizePanGesture:displacement]) {
@@ -1348,6 +1627,7 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
     // Reset translation to zero so that subsequent calls get relative value.
     [shoveRecognizer setTranslation:CGPointZero inView:_glView];
 }
+
 
 #pragma mark Map region change state notifiers
 
