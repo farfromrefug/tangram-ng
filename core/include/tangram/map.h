@@ -425,6 +425,8 @@ public:
 
     // Respond to a double tap at the given screen coordinates (x right, y down)
     void handleDoubleTapGesture(float _posX, float _posY);
+    // Respond to a double tap at the given screen coordinates (x right, y down) with a parameter allowing to zoom out instead of in
+    void handleDoubleTapGesture(float _posX, float _posY, bool _zoomOut);
 
     // Respond to a drag with the given displacement in screen coordinates (x right, y down)
     void handlePanGesture(float _startX, float _startY, float _endX, float _endY);
