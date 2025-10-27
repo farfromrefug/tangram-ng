@@ -407,6 +407,7 @@ TG_EXPORT
  Replaces the tap gesture recognizer used by the map view and adds it to the UIView.
  */
 @property (strong, nonatomic) UITapGestureRecognizer* tapGestureRecognizer;
+@property (strong, nonatomic) UITapGestureRecognizer* doubleTapTwoFingerGestureRecognizer;
 
 /**
  Replaces the double tap gesture recognizer used by the map view and adds it to the UIView.

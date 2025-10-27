@@ -541,14 +541,19 @@ static const CGFloat kPanZoomSensitivity = 0.005f; // zoom units per screen poin
 
     _doubleTapGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(respondToDoubleTapGesture:)];
     _doubleTapGestureRecognizer.numberOfTapsRequired = 2;
+    _doubleTapTwoFingerGestureRecognizer.numberOfTouchesRequired = 1;
+
+    
+    _doubleTapTwoFingerGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(respondToDoubleTapGesture:)];
+    _doubleTapTwoFingerGestureRecognizer.numberOfTapsRequired = 2;
+    _doubleTapTwoFingerGestureRecognizer.numberOfTouchesRequired = 2;
+    
     // Ignore single tap when double tap occurs
     [_tapGestureRecognizer requireGestureRecognizerToFail:_doubleTapGestureRecognizer];
-    
+    [_tapGestureRecognizer requireGestureRecognizerToFail:_doubleTapTwoFingerGestureRecognizer];
+
     _doubleTapDragRecognizer = [[DoubleTapDragGestureRecognizer alloc] initWithTarget:self action:@selector(respondToDoubleTapDragGesture:)];
     _doubleTapDragRecognizer.delegate = self;
-
-    // Ensure normal single-tap waits for a double tap to fail
-    [_tapGestureRecognizer requireGestureRecognizerToFail:_doubleTapGestureRecognizer];
 
     // Ensure the normal double-tap recognizer waits for the drag variant to fail.
     // This allows the drag recognizer to win if the user holds and drags on the second tap.
@@ -569,9 +574,11 @@ static const CGFloat kPanZoomSensitivity = 0.005f; // zoom units per screen poin
     _panGestureRecognizer.delegate = self;
     _pinchGestureRecognizer.delegate = self;
     _rotationGestureRecognizer.delegate = self;
+    _doubleTapTwoFingerGestureRecognizer.delegate = self;
 
     [self addGestureRecognizer:_tapGestureRecognizer];
     [self addGestureRecognizer:_doubleTapGestureRecognizer];
+    [self addGestureRecognizer:_doubleTapTwoFingerGestureRecognizer];
     [self addGestureRecognizer:_panGestureRecognizer];
     [self addGestureRecognizer:_pinchGestureRecognizer];
     [self addGestureRecognizer:_rotationGestureRecognizer];
@@ -1276,6 +1283,9 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
     if (_doubleTapGestureRecognizer) {
         [self removeGestureRecognizer:_doubleTapGestureRecognizer];
     }
+    if (_doubleTapTwoFingerGestureRecognizer) {
+        [self removeGestureRecognizer:_doubleTapTwoFingerGestureRecognizer];
+    }
     _doubleTapGestureRecognizer = recognizer;
     [self addGestureRecognizer:_doubleTapGestureRecognizer];
 }
@@ -1428,7 +1438,7 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
         if (![self.gestureDelegate mapView:self recognizer:doubleTapRecognizer shouldRecognizeDoubleTapGesture:location]) { return; }
     }
     
-    self.map->handleDoubleTapGesture(location.x * self.contentScaleFactor, location.y * self.contentScaleFactor);
+    self.map->handleDoubleTapGesture(location.x * self.contentScaleFactor, location.y * self.contentScaleFactor, [doubleTapRecognizer numberOfTouches] == 2);
     // Disable pan-zoom mode after a short window if user doesn't start panning
     _panZoomModeTimer = [NSTimer scheduledTimerWithTimeInterval:kPanZoomModeDuration
                                                          target:self
