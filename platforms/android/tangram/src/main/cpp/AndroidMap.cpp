@@ -20,7 +20,7 @@ static jmethodID hashMapPutMID = nullptr;
 void AndroidMap::jniOnLoad(JavaVM* javaVM, JNIEnv* jniEnv) {
     // JNI OnLoad is invoked once when the native library is loaded so this is a good place to cache
     // any method or class IDs that we'll need.
-    jclass mapControllerClass = jniEnv->FindClass("com/mapzen/tangram/MapController");
+    jclass mapControllerClass = jniEnv->FindClass("com/styluslabs/tangram/MapController");
     sceneReadyCallbackMID = jniEnv->GetMethodID(mapControllerClass, "sceneReadyCallback", "(IILjava/lang/String;Ljava/lang/String;)V");
     cameraAnimationCallbackMID = jniEnv->GetMethodID(mapControllerClass, "cameraAnimationCallback", "(Z)V");
     featurePickCallbackMID = jniEnv->GetMethodID(mapControllerClass, "featurePickCallback", "(Ljava/util/Map;FF)V");
