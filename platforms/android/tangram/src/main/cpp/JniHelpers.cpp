@@ -28,14 +28,14 @@ void JniHelpers::jniOnLoad(JavaVM* jvm, JNIEnv* jniEnv) {
     s_jvm = jvm;
     if(!jniEnv) return;
 
-    jclass cameraPositionClass = jniEnv->FindClass("com/mapzen/tangram/CameraPosition");
+    jclass cameraPositionClass = jniEnv->FindClass("com/styluslabs/tangram/CameraPosition");
     cameraPositionLongitudeFID = jniEnv->GetFieldID(cameraPositionClass, "longitude", "D");
     cameraPositionLatitudeFID = jniEnv->GetFieldID(cameraPositionClass, "latitude", "D");
     cameraPositionZoomFID = jniEnv->GetFieldID(cameraPositionClass, "zoom", "F");
     cameraPositionRotationFID = jniEnv->GetFieldID(cameraPositionClass, "rotation", "F");
     cameraPositionTiltFID = jniEnv->GetFieldID(cameraPositionClass, "tilt", "F");
 
-    jclass lngLatClass = jniEnv->FindClass("com/mapzen/tangram/LngLat");
+    jclass lngLatClass = jniEnv->FindClass("com/styluslabs/tangram/LngLat");
     lngLatLongitudeFID = jniEnv->GetFieldID(lngLatClass, "longitude", "D");
     lngLatLatitudeFID = jniEnv->GetFieldID(lngLatClass, "latitude", "D");
 
@@ -43,7 +43,7 @@ void JniHelpers::jniOnLoad(JavaVM* jvm, JNIEnv* jniEnv) {
     pointFxFID = jniEnv->GetFieldID(pointFClass, "x", "F");
     pointFyFID = jniEnv->GetFieldID(pointFClass, "y", "F");
 
-    jclass rectClass = jniEnv->FindClass("com/mapzen/tangram/EdgePadding");
+    jclass rectClass = jniEnv->FindClass("com/styluslabs/tangram/EdgePadding");
     edgePaddingLeftFID = jniEnv->GetFieldID(rectClass, "left", "I");
     edgePaddingTopFID = jniEnv->GetFieldID(rectClass, "top", "I");
     edgePaddingRightFID = jniEnv->GetFieldID(rectClass, "right", "I");

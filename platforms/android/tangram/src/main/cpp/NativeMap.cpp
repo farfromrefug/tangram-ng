@@ -8,7 +8,7 @@
 namespace Tangram {
 
 AndroidMap* androidMapFromJava(JNIEnv* env, jobject nativeMapObject) {
-    static jclass nativeMapClass = env->FindClass("com/mapzen/tangram/NativeMap");
+    static jclass nativeMapClass = env->FindClass("com/styluslabs/tangram/NativeMap");
     static jfieldID nativePointerFID = env->GetFieldID(nativeMapClass, "nativePointer", "J");
     jlong nativePointer = env->GetLongField(nativeMapObject, nativePointerFID);
     assert(nativePointer != 0);
@@ -31,7 +31,7 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(JNIEnv* jniEnv, jobjectArra
 
 extern "C" {
 
-#define NATIVE_METHOD(NAME) JNIEXPORT JNICALL Java_com_mapzen_tangram_NativeMap_ ## NAME
+#define NATIVE_METHOD(NAME) JNIEXPORT JNICALL Java_com_styluslabs_tangram_NativeMap_ ## NAME
 
 jlong NATIVE_METHOD(init)(JNIEnv* env, jobject obj, jobject mapController, jobject assetManager) {
     auto map = new AndroidMap(env, mapController, assetManager);
