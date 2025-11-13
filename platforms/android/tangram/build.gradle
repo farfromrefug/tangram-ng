@@ -148,12 +148,20 @@ dependencies {
 afterEvaluate {
     publishing {
         publications {
-            // Name the publication (e.g. 'aar'); ensure it matches 'components.release' if you publish release AAR
+            // publication named 'aar' (task name will be publishAarPublicationToMavenLocal)
             aar(MavenPublication) {
-                from components.findByName('release')
-                groupId = project.group
-                artifactId = 'tangram-ng-android'
+                groupId = 'com.styluslabs.tangram'
+                artifactId = 'tangram-ng-android'   // adjust as you like
                 version = project.version.toString()
+
+                // If components.release is available, prefer that:
+                // from components.release
+
+                // Otherwise explicitly point at the produced AAR file:
+                def aarFile = file("$buildDir/outputs/aar/${project.name}-release.aar")
+                artifact(aarFile) {
+                    builtBy tasks.named("assembleRelease")
+                }
             }
         }
     }
