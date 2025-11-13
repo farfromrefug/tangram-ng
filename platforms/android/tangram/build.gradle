@@ -141,6 +141,32 @@ dependencies {
   implementation 'androidx.annotation:annotation:1.1.0'
 }
 
+afterEvaluate {
+    def ndkDir = android.ndkDirectory?.absolutePath ?: System.getenv("ANDROID_NDK_HOME") ?: System.getenv("NDK_HOME")
+    if (ndkDir) {
+        task copyLibcxxShared(type: Copy) {
+            def archs = ["armeabi-v7a","arm64-v8a","x86","x86_64"]
+            archs.each { arch ->
+                def possible1 = "${ndkDir}/sources/cxx-stl/llvm-libc++/libs/${arch}/libc++_shared.so"
+                def possible2 = "${ndkDir}/toolchains/llvm/prebuilt/${org.gradle.internal.os.OperatingSystem.current().toString().toLowerCase()}-x86_64/sysroot/usr/lib/${arch}/libc++_shared.so"
+                if (file(possible1).exists()) {
+                    from(possible1)
+                    into("src/main/jniLibs/${arch}")
+                } else if (file(possible2).exists()) {
+                    from(possible2)
+                    into("src/main/jniLibs/${arch}")
+                } else {
+                    doLast { println "libc++_shared.so not found for ${arch}; check NDK layout." }
+                }
+            }
+        }
+        // Make sure copy runs before compilation tasks
+        tasks.matching { it.name.startsWith('pre') || it.name == 'preBuild' }.all { it.dependsOn(copyLibcxxShared) }
+    } else {
+        println "NDK directory not found; set ANDROID_NDK_HOME or NDK_HOME to enable auto-copy of libc++_shared.so"
+    }
+}
+
 
 // -----------------------------------------------------------------------------
 //  Maven publish using project.version (so JitPack's tag is used)
