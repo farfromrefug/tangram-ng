@@ -235,6 +235,8 @@ public class MapController {
         // listener/callbacks
         touchInput = null;
         mapChangeListener = null;
+        mapClickListener = null;
+        mapInteractionListener = null;
         featurePickListener = null;
         sceneLoadListener = null;
         labelPickListener = null;
@@ -1367,7 +1369,6 @@ public class MapController {
     private SceneLoadListener sceneLoadListener;
     private LabelPickListener labelPickListener;
     private MarkerPickListener markerPickListener;
-    private MapChangeListener mapChangeListener;
     private MapClickListener mapClickListener;
     private MapInteractionListener mapInteractionListener;
     private final Map<String, MapData> clientTileSources;

@@ -330,26 +330,27 @@ float TouchHandler::calculateRotatingScalingFactor(const ScreenPos& screenPos1, 
     return 0.0f;
 }
 
-void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
+bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
     View& viewState = m_view;
     auto now = std::chrono::steady_clock::now();
     
     switch (action) {
-    case TouchAction::POINTER_1_DOWN:
+    case TouchAction::POINTER_1_DOWN: {
         m_pointer1DownTime = now;
         m_noDualPointerYet = true;
         m_interactionConsumed = false;
         setVelocity(0.f, glm::vec2(0.f, 0.f));
         m_prevScreenPos1 = screenPos1;
-        
+
         // Check for double-tap
-        auto timeSinceFirstTap = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_firstTapTime);
+        auto timeSinceFirstTap = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - m_firstTapTime);
         float distFromFirstTap = std::sqrt(
-            std::pow(screenPos1.x - m_firstTapPos.x, 2) + 
-            std::pow(screenPos1.y - m_firstTapPos.y, 2)
+                std::pow(screenPos1.x - m_firstTapPos.x, 2) +
+                std::pow(screenPos1.y - m_firstTapPos.y, 2)
         );
-        
-        if (timeSinceFirstTap < DOUBLE_TAP_TIMEOUT && 
+
+        if (timeSinceFirstTap < DOUBLE_TAP_TIMEOUT &&
             distFromFirstTap < TAP_MOVEMENT_THRESHOLD &&
             m_gestureMode == GestureMode::SINGLE_POINTER_CLICK_GUESS) {
             // This is a double-tap - start zoom mode
@@ -357,7 +358,9 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
             {
                 std::lock_guard<std::mutex> lock(m_listenersMutex);
                 if (m_mapInteractionListener) {
-                    m_interactionConsumed = m_mapInteractionListener->onMapInteraction(false, true, false, false);
+                    m_interactionConsumed = m_mapInteractionListener->onMapInteraction(false, true,
+                                                                                       false,
+                                                                                       false);
                 }
             }
             if (!m_interactionConsumed) {
@@ -372,7 +375,7 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
             m_firstTapPos = screenPos1;
         }
         break;
-        
+    }
     case TouchAction::POINTER_2_DOWN:
         m_noDualPointerYet = false;
         switch (m_gestureMode) {
@@ -560,6 +563,7 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
     } else if (action == TouchAction::CANCEL) {
         m_pointersDown = 0;
     }
+    return m_interactionConsumed;
 }
 
 }
