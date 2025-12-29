@@ -116,6 +116,7 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
         map = mapController;
         String sceneUrl = sceneSelector.getCurrentString();
         map.setSceneLoadListener(this);
+        view.setNewTouchHandlingEnabled(true);
 
         LngLat startPoint = new LngLat(-74.00976419448854, 40.70532700869127);
         map.updateCameraPosition(CameraUpdateFactory.newLngLatZoom(startPoint, 16));
