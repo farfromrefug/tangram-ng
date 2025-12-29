@@ -42,10 +42,10 @@ bool TouchHandler::update(float _dt) {
                       std::abs(m_velocityZoom) > THRESHOLD_STOP_ZOOM;
 
     if (isFlinging) {
-        m_velocityPan -= glm::min(_dt * DAMPING_PAN, 1.f) * m_velocityPan;
+        m_velocityPan -= std::min(_dt * DAMPING_PAN, 1.f) * m_velocityPan;
         m_view.translate(_dt * m_velocityPan.x, _dt * m_velocityPan.y);
 
-        m_velocityZoom -= glm::min(_dt * DAMPING_ZOOM, 1.f) * m_velocityZoom;
+        m_velocityZoom -= std::min(_dt * DAMPING_ZOOM, 1.f) * m_velocityZoom;
         m_view.zoom(m_velocityZoom * _dt);
     }
 

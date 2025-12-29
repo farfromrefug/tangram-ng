@@ -439,6 +439,14 @@ TG_EXPORT
  */
 @property (strong, nonatomic) UILongPressGestureRecognizer* longPressGestureRecognizer;
 
+/**
+ Enable new touch handling system (similar to Carto Mobile SDK).
+ This provides more consistent cross-platform touch handling.
+ When enabled, gesture recognizers are disabled and raw touch events are used.
+ Default is NO (uses gesture recognizers).
+ */
+@property (assign, nonatomic) BOOL useNewTouchHandling;
+
 #pragma mark Map region change state notifiers
 
 /**
