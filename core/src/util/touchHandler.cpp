@@ -23,6 +23,12 @@
 // No coordinate constant
 #define NATIVE_NO_COORDINATE -1.0f
 
+// Maximum pitch angle for pan limiting (degrees)
+#define MAX_PITCH_FOR_PAN_LIMITING 75.0f
+
+// Zoom sensitivity for single pointer zoom (zoom units per pixel)
+#define SINGLE_POINTER_ZOOM_SENSITIVITY 0.01f
+
 namespace Tangram {
 
 TouchHandler::TouchHandler(View& _view)
@@ -68,7 +74,7 @@ glm::vec2 TouchHandler::getTranslation(float _startX, float _startY, float _endX
     glm::vec2 dr = start - end;
 
     // prevent extreme panning when view is nearly horizontal
-    if (m_view.getPitch() > 75.0 * M_PI / 180) {
+    if (m_view.getPitch() > MAX_PITCH_FOR_PAN_LIMITING * M_PI / 180) {
         float dpx = glm::length(glm::vec2(_startX - _endX, _startY - _endY)) / m_view.pixelsPerMeter();
         float dd = glm::length(dr);
         if (dd > dpx) {
@@ -93,7 +99,7 @@ void TouchHandler::singlePointerPan(const ScreenPos& screenPos, View& viewState)
 void TouchHandler::singlePointerZoom(const ScreenPos& screenPos, View& viewState) {
     // Implement single pointer zoom (e.g., double-tap and drag)
     float deltaY = screenPos.y - m_prevScreenPos1.y;
-    float zoomDelta = -deltaY * 0.01f; // Adjust sensitivity as needed
+    float zoomDelta = -deltaY * SINGLE_POINTER_ZOOM_SENSITIVITY;
     
     // Get the fixed point for zooming
     float elev;
