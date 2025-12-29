@@ -55,6 +55,26 @@ public:
     
     // Add/remove map interaction listeners
     void setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener);
+    
+    // Set callback for animated zoom (Map will provide this)
+    using AnimatedZoomCallback = std::function<void(float x, float y, float zoomDelta, float duration)>;
+    void setAnimatedZoomCallback(AnimatedZoomCallback callback) { m_animatedZoomCallback = callback; }
+    
+    // Enable/disable gestures
+    void setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate);
+    void setZoomEnabled(bool enabled) { m_zoomEnabled = enabled; }
+    void setPanEnabled(bool enabled) { m_panEnabled = enabled; }
+    void setDoubleTapEnabled(bool enabled) { m_doubleTapEnabled = enabled; }
+    void setDoubleTapDragEnabled(bool enabled) { m_doubleTapDragEnabled = enabled; }
+    void setTiltEnabled(bool enabled) { m_tiltEnabled = enabled; }
+    void setRotateEnabled(bool enabled) { m_rotateEnabled = enabled; }
+    
+    bool isZoomEnabled() const { return m_zoomEnabled; }
+    bool isPanEnabled() const { return m_panEnabled; }
+    bool isDoubleTapEnabled() const { return m_doubleTapEnabled; }
+    bool isDoubleTapDragEnabled() const { return m_doubleTapDragEnabled; }
+    bool isTiltEnabled() const { return m_tiltEnabled; }
+    bool isRotateEnabled() const { return m_rotateEnabled; }
 
 private:
     // Gesture detection and handling methods
@@ -86,6 +106,17 @@ private:
     std::shared_ptr<MapInteractionListener> m_mapInteractionListener;
     std::mutex m_listenersMutex;
     
+    // Animated zoom callback
+    AnimatedZoomCallback m_animatedZoomCallback;
+    
+    // Gesture enable/disable flags
+    bool m_zoomEnabled;
+    bool m_panEnabled;
+    bool m_doubleTapEnabled;
+    bool m_doubleTapDragEnabled;
+    bool m_tiltEnabled;
+    bool m_rotateEnabled;
+    
     // State tracking
     GestureMode m_gestureMode;
     int m_pointersDown;
@@ -96,6 +127,7 @@ private:
     ScreenPos m_prevScreenPos1;
     ScreenPos m_prevScreenPos2;
     ScreenPos m_firstTapPos;
+    ScreenPos m_doubleTapStartPos; // Position where double tap started (for zooming)
     
     // Timing for gesture detection
     std::chrono::steady_clock::time_point m_dualPointerReleaseTime;

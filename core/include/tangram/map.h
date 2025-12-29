@@ -458,6 +458,15 @@ public:
     // Set listener for map interaction events (panning, zooming, rotating, tilting)
     // Listener can return true to prevent all default interaction behavior
     void setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener);
+    
+    // Enable or disable specific gestures for the new touch handling system
+    void setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate);
+    void setZoomEnabled(bool enabled);
+    void setPanEnabled(bool enabled);
+    void setDoubleTapEnabled(bool enabled);
+    void setDoubleTapDragEnabled(bool enabled);
+    void setTiltEnabled(bool enabled);
+    void setRotateEnabled(bool enabled);
 
     // Set whether the OpenGL state will be cached between subsequent frames; this improves rendering
     // efficiency, but can cause errors if your application code makes OpenGL calls (false by default)

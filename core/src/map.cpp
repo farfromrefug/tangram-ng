@@ -116,6 +116,23 @@ static std::bitset<9> g_flags = 0;
 Map::Map(std::unique_ptr<Platform> _platform) : platform(std::move(_platform)) {
     LOGTOInit();
     impl = std::make_unique<Impl>(*platform);
+    
+    // Set animated zoom callback for touch handler
+    impl->touchHandler.setAnimatedZoomCallback([this](float x, float y, float zoomDelta, float duration) {
+        // Get the position at the tap/touch point
+        float elev;
+        impl->view.screenPositionToLngLat(x, y, &elev);
+        glm::dvec2 screenPos = impl->view.screenToGroundPlane(x, y, elev);
+        LngLat tapLngLat = MapProjection::projectedMetersToLngLat(screenPos);
+        
+        // Create camera update for zoom
+        CameraPosition camera = getCameraPosition();
+        camera.zoom += zoomDelta;
+        camera.setLngLat(tapLngLat); // Keep the tap position centered
+        
+        // Animate to new zoom level
+        setCameraPositionEased(camera, duration, EaseType::CUBIC);
+    });
 }
 
 Map::~Map() {
@@ -978,6 +995,34 @@ void Map::setMapClickListener(std::shared_ptr<MapClickListener> listener) {
 
 void Map::setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener) {
     impl->touchHandler.setMapInteractionListener(listener);
+}
+
+void Map::setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate) {
+    impl->touchHandler.setGesturesEnabled(zoom, pan, doubleTap, doubleTapDrag, tilt, rotate);
+}
+
+void Map::setZoomEnabled(bool enabled) {
+    impl->touchHandler.setZoomEnabled(enabled);
+}
+
+void Map::setPanEnabled(bool enabled) {
+    impl->touchHandler.setPanEnabled(enabled);
+}
+
+void Map::setDoubleTapEnabled(bool enabled) {
+    impl->touchHandler.setDoubleTapEnabled(enabled);
+}
+
+void Map::setDoubleTapDragEnabled(bool enabled) {
+    impl->touchHandler.setDoubleTapDragEnabled(enabled);
+}
+
+void Map::setTiltEnabled(bool enabled) {
+    impl->touchHandler.setTiltEnabled(enabled);
+}
+
+void Map::setRotateEnabled(bool enabled) {
+    impl->touchHandler.setRotateEnabled(enabled);
 }
 
 void Map::setupGL() {

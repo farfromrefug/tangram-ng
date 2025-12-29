@@ -39,6 +39,12 @@ TouchHandler::TouchHandler(View& _view)
       m_pointersDown(0),
       m_noDualPointerYet(true),
       m_interactionConsumed(false),
+      m_zoomEnabled(true),
+      m_panEnabled(true),
+      m_doubleTapEnabled(true),
+      m_doubleTapDragEnabled(true),
+      m_tiltEnabled(true),
+      m_rotateEnabled(true),
       m_singlePointerZoomStartZoom(0.f),
       m_velocityPan(0.f, 0.f),
       m_velocityZoom(0.f),
@@ -81,6 +87,15 @@ void TouchHandler::setMapInteractionListener(std::shared_ptr<MapInteractionListe
     m_mapInteractionListener = listener;
 }
 
+void TouchHandler::setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate) {
+    m_zoomEnabled = zoom;
+    m_panEnabled = pan;
+    m_doubleTapEnabled = doubleTap;
+    m_doubleTapDragEnabled = doubleTapDrag;
+    m_tiltEnabled = tilt;
+    m_rotateEnabled = rotate;
+}
+
 glm::vec2 TouchHandler::getTranslation(float _startX, float _startY, float _endX, float _endY) {
     float elev = 0;
     m_view.screenPositionToLngLat(_startX, _startY, &elev);
@@ -115,23 +130,30 @@ void TouchHandler::singlePointerPan(const ScreenPos& screenPos, View& viewState)
 
 void TouchHandler::startSinglePointerZoom(const ScreenPos& screenPos) {
     m_singlePointerZoomStartZoom = m_view.getZoom();
+    m_doubleTapStartPos = screenPos; // Store the position where double tap started
     m_prevScreenPos1 = screenPos;
     m_gestureMode = GestureMode::SINGLE_POINTER_ZOOM;
 }
 
 void TouchHandler::singlePointerZoom(const ScreenPos& screenPos, View& viewState) {
+    if (!m_doubleTapDragEnabled) {
+        return; // Double tap + drag disabled
+    }
+    
     // Implement single pointer zoom (double-tap and drag)
+    // Zoom at the double tap position, not the current drag position
     float deltaY = screenPos.y - m_prevScreenPos1.y;
     float zoomDelta = -deltaY * SINGLE_POINTER_ZOOM_SENSITIVITY;
     
-    // Get the fixed point for zooming (at the center of the screen or tap point)
+    // Get the fixed point for zooming (at the double tap position)
     float elev;
-    m_view.screenPositionToLngLat(m_prevScreenPos1.x, m_prevScreenPos1.y, &elev);
-    auto start = m_view.screenToGroundPlane(m_prevScreenPos1.x, m_prevScreenPos1.y, elev);
+    m_view.screenPositionToLngLat(m_doubleTapStartPos.x, m_doubleTapStartPos.y, &elev);
+    auto start = m_view.screenToGroundPlane(m_doubleTapStartPos.x, m_doubleTapStartPos.y, elev);
     
     m_view.zoom(zoomDelta);
     
-    auto end = m_view.screenToGroundPlane(m_prevScreenPos1.x, m_prevScreenPos1.y, elev);
+    // Keep the double tap position fixed
+    auto end = m_view.screenToGroundPlane(m_doubleTapStartPos.x, m_doubleTapStartPos.y, elev);
     m_view.translate(start - end);
     
     m_prevScreenPos1 = screenPos;
@@ -147,21 +169,10 @@ void TouchHandler::handleSingleTap(const ScreenPos& screenPos) {
     {
         std::lock_guard<std::mutex> lock(m_listenersMutex);
         if (m_mapClickListener) {
-            bool consumed = m_mapClickListener->onMapClick(ClickType::SINGLE, screenPos.x, screenPos.y);
-            if (consumed) {
-                return; // Listener consumed the click
-            }
+            m_mapClickListener->onMapClick(ClickType::SINGLE, screenPos.x, screenPos.y);
+            // Note: Single tap has no default behavior, just notify listener
         }
     }
-    
-    // Default behavior: Pan to center the tapped location
-    float viewCenterX = 0.5f * m_view.getWidth();
-    float viewCenterY = 0.5f * m_view.getHeight();
-
-    auto center = m_view.screenToGroundPlane(viewCenterX, viewCenterY);
-    auto pos = m_view.screenToGroundPlane(screenPos.x, screenPos.y);
-
-    m_view.translate(pos - center);
 }
 
 void TouchHandler::handleDoubleTap(const ScreenPos& screenPos) {
@@ -176,8 +187,10 @@ void TouchHandler::handleDoubleTap(const ScreenPos& screenPos) {
         }
     }
     
-    // Default behavior: zoom in
-    doubleTapZoom(screenPos, m_view);
+    // Default behavior: animated zoom in by +1
+    if (m_doubleTapEnabled && m_animatedZoomCallback) {
+        m_animatedZoomCallback(screenPos.x, screenPos.y, 1.0f, 0.3f); // +1 zoom over 0.3 seconds
+    }
 }
 
 void TouchHandler::handleLongPress(const ScreenPos& screenPos) {
@@ -195,10 +208,19 @@ void TouchHandler::handleDualTap(const ScreenPos& screenPos1, const ScreenPos& s
     float x = (screenPos1.x + screenPos2.x) / 2.0f;
     float y = (screenPos1.y + screenPos2.y) / 2.0f;
     
-    std::lock_guard<std::mutex> lock(m_listenersMutex);
-    if (m_mapClickListener) {
-        m_mapClickListener->onMapClick(ClickType::DUAL, x, y);
-        // Note: Dual tap has no default behavior, just notify listener
+    {
+        std::lock_guard<std::mutex> lock(m_listenersMutex);
+        if (m_mapClickListener) {
+            bool consumed = m_mapClickListener->onMapClick(ClickType::DUAL, x, y);
+            if (consumed) {
+                return; // Listener consumed the click
+            }
+        }
+    }
+    
+    // Default behavior: animated zoom out by -1
+    if (m_doubleTapEnabled && m_animatedZoomCallback) {
+        m_animatedZoomCallback(x, y, -1.0f, 0.3f); // -1 zoom over 0.3 seconds
     }
 }
 
@@ -353,7 +375,14 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
         if (timeSinceFirstTap < DOUBLE_TAP_TIMEOUT &&
             distFromFirstTap < TAP_MOVEMENT_THRESHOLD &&
             m_gestureMode == GestureMode::SINGLE_POINTER_CLICK_GUESS) {
-            // This is a double-tap - start zoom mode
+            // This is a double-tap - check if enabled
+            if (!m_doubleTapDragEnabled) {
+                // Double tap + drag disabled, but still handle as double tap click
+                m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+                break;
+            }
+            
+            // Start zoom mode
             // Call interaction listener for zooming
             {
                 std::lock_guard<std::mutex> lock(m_listenersMutex);
@@ -406,6 +435,11 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
                     std::pow(screenPos1.y - m_prevScreenPos1.y, 2)
                 );
                 if (dist > TAP_MOVEMENT_THRESHOLD) {
+                    // Check if pan is enabled
+                    if (!m_panEnabled) {
+                        break; // Pan disabled
+                    }
+                    
                     // Transition to pan - call interaction listener
                     {
                         std::lock_guard<std::mutex> lock(m_listenersMutex);
