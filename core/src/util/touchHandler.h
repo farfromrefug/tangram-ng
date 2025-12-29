@@ -65,6 +65,8 @@ private:
     void doubleTapZoom(const ScreenPos& screenPos, View& viewState);
     void handleSingleTap(const ScreenPos& screenPos);
     void handleDoubleTap(const ScreenPos& screenPos);
+    void handleLongPress(const ScreenPos& screenPos);
+    void handleDualTap(const ScreenPos& screenPos1, const ScreenPos& screenPos2);
     
     void startDualPointer(const ScreenPos& screenPos1, const ScreenPos& screenPos2);
     void dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos& screenPos2, View& viewState);
@@ -112,6 +114,7 @@ private:
     static constexpr std::chrono::milliseconds DUAL_STOP_HOLD_DURATION{500};
     static constexpr std::chrono::milliseconds DUAL_KINETIC_HOLD_DURATION{200};
     static constexpr std::chrono::milliseconds DOUBLE_TAP_TIMEOUT{300};
+    static constexpr std::chrono::milliseconds LONG_PRESS_TIMEOUT{500};
     static constexpr float TAP_MOVEMENT_THRESHOLD = 10.0f; // pixels
 };
 

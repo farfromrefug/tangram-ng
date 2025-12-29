@@ -14,16 +14,24 @@ struct ScreenPos {
     ScreenPos(float _x, float _y) : x(_x), y(_y) {}
 };
 
+// Types of click/tap gestures
+enum class ClickType {
+    SINGLE = 0,  // A click caused by pressing down and then releasing the screen
+    LONG = 1,    // A click caused by pressing down but not releasing the screen
+    DOUBLE = 2,  // A click caused by two fast consecutive taps on the screen
+    DUAL = 3     // A click caused by two simultaneous taps on the screen
+};
+
 // Map click listener interface
-// Called when the user performs a single tap on the map
+// Called when the user performs a tap on the map
 class MapClickListener {
 public:
     virtual ~MapClickListener() = default;
     
-    // Called when a single tap occurs
+    // Called when a tap occurs
     // Return true to consume the event and prevent default behavior (centering)
     // Return false to allow default handling
-    virtual bool onMapClick(float x, float y) = 0;
+    virtual bool onMapClick(ClickType clickType, float x, float y) = 0;
 };
 
 // Map interaction listener interface  

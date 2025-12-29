@@ -39,6 +39,7 @@ namespace Tangram {
 
 using ScreenPos = Tangram::ScreenPos;
 using TouchAction = Tangram::TouchAction;
+using ClickType = Tangram::ClickType;
 using MapClickListener = Tangram::MapClickListener;
 using MapInteractionListener = Tangram::MapInteractionListener;
 

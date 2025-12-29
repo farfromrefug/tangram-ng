@@ -147,7 +147,7 @@ void TouchHandler::handleSingleTap(const ScreenPos& screenPos) {
     {
         std::lock_guard<std::mutex> lock(m_listenersMutex);
         if (m_mapClickListener) {
-            bool consumed = m_mapClickListener->onMapClick(screenPos.x, screenPos.y);
+            bool consumed = m_mapClickListener->onMapClick(ClickType::SINGLE, screenPos.x, screenPos.y);
             if (consumed) {
                 return; // Listener consumed the click
             }
@@ -165,8 +165,41 @@ void TouchHandler::handleSingleTap(const ScreenPos& screenPos) {
 }
 
 void TouchHandler::handleDoubleTap(const ScreenPos& screenPos) {
-    // Start double-tap-and-drag zoom or just zoom
+    // Call map click listener first
+    {
+        std::lock_guard<std::mutex> lock(m_listenersMutex);
+        if (m_mapClickListener) {
+            bool consumed = m_mapClickListener->onMapClick(ClickType::DOUBLE, screenPos.x, screenPos.y);
+            if (consumed) {
+                return; // Listener consumed the click
+            }
+        }
+    }
+    
+    // Default behavior: zoom in
     doubleTapZoom(screenPos, m_view);
+}
+
+void TouchHandler::handleLongPress(const ScreenPos& screenPos) {
+    // Call map click listener for long press
+    std::lock_guard<std::mutex> lock(m_listenersMutex);
+    if (m_mapClickListener) {
+        m_mapClickListener->onMapClick(ClickType::LONG, screenPos.x, screenPos.y);
+        // Note: Long press has no default behavior, just notify listener
+    }
+}
+
+void TouchHandler::handleDualTap(const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
+    // Call map click listener for dual tap
+    // Use the midpoint of the two taps
+    float x = (screenPos1.x + screenPos2.x) / 2.0f;
+    float y = (screenPos1.y + screenPos2.y) / 2.0f;
+    
+    std::lock_guard<std::mutex> lock(m_listenersMutex);
+    if (m_mapClickListener) {
+        m_mapClickListener->onMapClick(ClickType::DUAL, x, y);
+        // Note: Dual tap has no default behavior, just notify listener
+    }
 }
 
 void TouchHandler::doubleTapZoom(const ScreenPos& screenPos, View& viewState) {
@@ -444,10 +477,15 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
             
             switch (m_gestureMode) {
             case GestureMode::SINGLE_POINTER_CLICK_GUESS:
-                // This was a tap - check if it qualifies as a click
-                if (tapDuration < DOUBLE_TAP_TIMEOUT && moveDist < TAP_MOVEMENT_THRESHOLD) {
-                    // This is a single tap - call handleSingleTap which checks the listener
-                    handleSingleTap(screenPos1);
+                // This was a tap - check if it qualifies as a click or long press
+                if (moveDist < TAP_MOVEMENT_THRESHOLD) {
+                    if (tapDuration >= LONG_PRESS_TIMEOUT) {
+                        // Long press
+                        handleLongPress(screenPos1);
+                    } else if (tapDuration < DOUBLE_TAP_TIMEOUT) {
+                        // Single tap
+                        handleSingleTap(screenPos1);
+                    }
                 }
                 m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
                 break;
@@ -490,6 +528,13 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
     case TouchAction::POINTER_2_UP:
         switch (m_gestureMode) {
         case GestureMode::DUAL_POINTER_CLICK_GUESS:
+            {
+                // Check if both fingers went down and up quickly = dual tap
+                auto tapDuration = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_pointer1DownTime);
+                if (tapDuration < DOUBLE_TAP_TIMEOUT) {
+                    handleDualTap(m_prevScreenPos1, screenPos2);
+                }
+            }
             m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
             break;
         case GestureMode::DUAL_POINTER_GUESS:
