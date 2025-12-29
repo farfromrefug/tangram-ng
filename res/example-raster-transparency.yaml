@@ -1,0 +1,180 @@
+# Example: Raster Source with Transparency Support
+# This example demonstrates how to use raster sources with alpha/transparency
+# including blending modes, alpha control, and caching to MBTiles
+
+global:
+    font_sans: "Inter"
+
+fonts:
+  "Inter":
+    - url: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf"
+
+sources:
+    # Base satellite imagery (opaque layer)
+    satellite:
+        type: Raster
+        url: https://a{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+        url_subdomains: [1, 2, 3]
+        max_zoom: 19
+
+    # Weather overlay with transparency (e.g., radar, precipitation)
+    weather-overlay:
+        type: Raster
+        url: https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png
+        url_subdomains: []
+        max_zoom: 18
+        # Optional: Cache tiles to local MBTiles file
+        cache: weather-cache
+        max_age: 600  # Cache tiles for 10 minutes (600 seconds)
+
+    # Semi-transparent hillshade overlay
+    hillshade:
+        type: Raster
+        url: https://tiles.wmflabs.org/hillshading/{z}/{x}/{y}.png
+        max_zoom: 18
+        filtering: linear  # Smooth filtering for better visual quality
+
+    # Vector data for labels (can also use transparency)
+    labels:
+        type: MVT
+        url: https://tiles.openfreemap.org/planet/latest/{z}/{x}/{y}.pbf
+        max_zoom: 14
+
+# Raster styles with different transparency/blending modes
+styles:
+    # Base raster style - opaque
+    raster-base:
+        base: raster
+        blend: opaque  # No transparency, fully opaque rendering
+        lighting: false
+
+    # Transparent overlay style using alpha parameter
+    raster-overlay-alpha:
+        base: raster
+        blend: overlay  # Enable alpha blending
+        lighting: false
+        draw:
+            alpha: 0.7  # 70% opacity (0.0 = fully transparent, 1.0 = fully opaque)
+
+    # Overlay with zoom-dependent transparency
+    raster-overlay-fade:
+        base: raster
+        blend: overlay
+        lighting: false
+        draw:
+            # Fade in as you zoom in
+            alpha: [[10, 0.3], [12, 0.5], [14, 0.7], [16, 0.9]]
+
+    # Multiply blend mode for hillshade effect
+    raster-multiply:
+        base: raster
+        blend: multiply  # Darkens underlying layers
+        lighting: false
+        draw:
+            alpha: 0.6
+
+    # Translucent blend mode
+    raster-translucent:
+        base: raster
+        blend: translucent  # Standard alpha blending with transparency
+        lighting: false
+
+    # Inlay blend mode (renders below opaque features)
+    raster-inlay:
+        base: raster
+        blend: inlay
+        blend_order: 0  # Lower values render first
+        lighting: false
+
+    # Custom shader-based transparency control
+    raster-custom-alpha:
+        base: raster
+        blend: overlay
+        lighting: false
+        shaders:
+            uniforms:
+                u_custom_alpha: 0.8
+            blocks:
+                color: |
+                    // Custom alpha control in shader
+                    color.a *= u_custom_alpha;
+                    // Optional: fade based on distance or other factors
+                    // color.a *= 1.0 - (v_position.z / 1000.0);
+
+cameras:
+    perspective-camera:
+        position: [-122.434, 37.777, 12]
+        type: perspective
+        fov: 45
+
+layers:
+    # Base satellite layer (opaque)
+    base:
+        data: { source: satellite }
+        draw:
+            raster-base:
+                color: white
+                order: 0
+
+    # Hillshade overlay with multiply blend
+    hillshade-layer:
+        data: { source: hillshade }
+        draw:
+            raster-multiply:
+                order: 10
+
+    # Weather overlay with transparency
+    weather:
+        data: { source: weather-overlay }
+        draw:
+            raster-overlay-alpha:
+                order: 20
+
+    # Example: Conditional transparency based on zoom
+    # Shows weather data only at certain zoom levels with varying opacity
+    weather-zoom-dependent:
+        data: { source: weather-overlay }
+        filter: { $zoom: { min: 8, max: 16 } }
+        draw:
+            raster-overlay-fade:
+                order: 25
+
+    # Vector labels on top (demonstrates mixing raster and vector)
+    place-labels:
+        data: { source: labels, layer: place }
+        filter: { $zoom: { min: 8 } }
+        draw:
+            text:
+                font:
+                    family: global.font_sans
+                    size: 12px
+                    fill: black
+                    stroke: { color: white, width: 2 }
+                order: 100
+
+# Blending Modes Reference:
+# - opaque:      No transparency, fully opaque (default for most styles)
+# - overlay:     Standard alpha blending with transparency
+# - translucent: Similar to overlay, allows transparency
+# - inlay:       Renders below opaque features, useful for base layers
+# - add:         Additive blending, brightens underlying layers
+# - multiply:    Multiplicative blending, darkens underlying layers
+# - nonopaque:   Indicates non-opaque rendering without specific blend function
+
+# Alpha Parameter:
+# - alpha: 0.0 to 1.0 (or 0% to 100%)
+# - Can be a single value: alpha: 0.7
+# - Can be zoom-dependent: alpha: [[zoom1, value1], [zoom2, value2]]
+# - Can be applied to any drawable style parameter
+
+# Caching to MBTiles:
+# - Specify 'cache: filename' to store tiles in local MBTiles database
+# - Use 'max_age: seconds' to control cache expiration
+# - MBTiles cache enables offline usage and reduces network requests
+# - Cache files are stored in the diskCacheDir specified in SceneOptions
+# - Set diskTileCacheSize > 0 in SceneOptions to enable caching
+
+# Texture Filtering:
+# - filtering: linear  (smooth, bilinear filtering - default)
+# - filtering: nearest (pixelated, nearest-neighbor filtering)
+# - filtering: mipmap  (mipmapped filtering for better quality at distance)
