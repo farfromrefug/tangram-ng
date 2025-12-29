@@ -52,7 +52,7 @@ class NativeMap {
     native synchronized float getMaxZoom();
     native synchronized void setMaxZoom(float maxZoom);
     native synchronized void handleTapGesture(float posX, float posY);
-    native synchronized void handleDoubleTapGesture(float posX, float posY);
+    native synchronized void handleDoubleTapGesture(float posX, float posY, boolean zoomOut);
     native synchronized void handlePanGesture(float startX, float startY, float endX, float endY);
     native synchronized void handleFlingGesture(float posX, float posY, float velocityX, float velocityY);
     native synchronized void handlePinchGesture(float posX, float posY, float scale, float velocity);

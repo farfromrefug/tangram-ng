@@ -263,9 +263,9 @@ void NATIVE_METHOD(handleTapGesture)(JNIEnv* env, jobject obj, jfloat posX, jflo
     map->handleTapGesture(posX, posY);
 }
 
-void NATIVE_METHOD(handleDoubleTapGesture)(JNIEnv* env, jobject obj, jfloat posX, jfloat posY) {
+void NATIVE_METHOD(handleDoubleTapGesture)(JNIEnv* env, jobject obj, jfloat posX, jfloat posY, jboolean zoomOut) {
     auto* map = androidMapFromJava(env, obj);
-    map->handleDoubleTapGesture(posX, posY);
+    map->handleDoubleTapGesture(posX, posY, zoomOut);
 }
 
 void NATIVE_METHOD(handlePanGesture)(JNIEnv* env, jobject obj, jfloat startX, jfloat startY,
