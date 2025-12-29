@@ -1,6 +1,7 @@
 package com.styluslabs.tangram;
 
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.opengl.GLSurfaceView;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -40,10 +41,27 @@ public class MapView extends FrameLayout {
 
     public MapView(@NonNull final Context context) {
         super(context);
+
+        setClickable(true);
+        setLongClickable(true);
     }
 
     public MapView(@NonNull final Context context, @Nullable final AttributeSet attrs) {
         super(context, attrs);
+
+        // Unless explictly not clickable, make clickable by default
+        boolean clickable = true;
+        boolean longClickable = true;
+        try {
+            TypedArray ta = context.obtainStyledAttributes(attrs, new int[]{ android.R.attr.clickable, android.R.attr.longClickable });
+            clickable = ta.getBoolean(0, true);
+            longClickable = ta.getBoolean(1, true);
+            ta.recycle();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        setClickable(clickable);
+        setLongClickable(longClickable);
     }
 
     /**
