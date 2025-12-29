@@ -93,6 +93,75 @@ Complete reference for working with GeoJSON and TopoJSON data sources.
 - Choropleth maps and data visualization
 - Boundary and administrative region display
 
+### 4. Client-Side GeoJSON from String (`example-client-geojson.yaml`)
+
+Detailed guide for creating GeoJSON sources from manually generated strings using the C++ API.
+
+**Key Features:**
+- Creating GeoJSON from strings at runtime
+- Six complete C++ implementation examples
+- Using ClientDataSource builder API
+- Programmatically building GeoJSON
+- JSON library integration (nlohmann/json)
+- Dynamic data updates
+- Multiple feature types in one source
+
+**Implementation Methods:**
+- **GeoJSON String**: Parse complete GeoJSON string
+- **Builder API**: Use PolylineBuilder and PolygonBuilder
+- **Programmatic**: Build JSON from application data
+- **JSON Library**: Integration with C++ JSON libraries
+
+**Use Cases:**
+- User-drawn features (drawing tools)
+- Real-time data from sensors or APIs
+- Dynamic route visualization
+- Custom annotations and overlays
+- Application-generated geometries
+- Interactive data visualization
+
+**Requirements:**
+- C++ API access to Tangram::ClientDataSource
+- Optional: C++ JSON library for easier JSON generation
+
+### 5. Feature Selection (`example-feature-selection.yaml`)
+
+Comprehensive guide for selecting and highlighting features from local MBTiles vector tiles.
+
+**Key Features:**
+- Interactive feature picking with pickFeatureAt()
+- Multiple selection methods (overlay and scene updates)
+- Hover and click interactions
+- Multi-select capability
+- Different styling for selected features
+- Property-based selection filtering
+- Complete C++ implementation examples
+
+**Selection Techniques:**
+- **Overlay Method**: Use ClientDataSource for selection overlay
+- **Scene Update Method**: Update scene styling dynamically
+- **Hybrid Method**: Combine both for complex interactions
+
+**Interaction Patterns:**
+- Single selection with highlight
+- Multi-select with different colors
+- Hover preview with click-to-select
+- Property-based bulk selection
+- Selection with visual feedback
+
+**Use Cases:**
+- Interactive map applications
+- Feature editing tools
+- Property inspection interfaces
+- Multi-feature analysis
+- Click-to-highlight functionality
+- Building/parcel selection in GIS apps
+
+**Requirements:**
+- Local MBTiles vector tiles with interactive: true
+- C++ API access for feature picking
+- ClientDataSource for selection overlays
+
 ## Usage
 
 ### Basic Scene Loading
@@ -117,10 +186,16 @@ map.loadScene("res/example-raster-transparency.yaml", options);
 ### Adding Client-Side GeoJSON
 
 ```cpp
-// Create a GeoJSON data layer
-map.addDataLayer("my-geojson", true); // true = generate centroids
+// Method 1: Using ClientDataSource directly (recommended)
+#include "tangram.h"
+#include "data/clientDataSource.h"
 
-// Add GeoJSON data
+// Create the data source
+auto dataSource = std::make_shared<Tangram::ClientDataSource>(
+    platform, "my-dynamic-data", "", true);  // true = generate centroids
+map->addTileSource(dataSource);
+
+// Add GeoJSON data from string
 std::string geojson = R"({
     "type": "FeatureCollection",
     "features": [{
@@ -134,7 +209,55 @@ std::string geojson = R"({
         }
     }]
 })";
-map.addData("my-geojson", geojson);
+dataSource->addData(geojson);
+dataSource->generateTiles();
+
+// Method 2: Using builder API for individual features
+Tangram::Properties props;
+props.set("name", "Custom Point");
+dataSource->addPointFeature(
+    std::move(props),
+    Tangram::LngLat{-122.4, 37.8}
+);
+dataSource->generateTiles();
+```
+
+### Feature Selection and Highlighting
+
+```cpp
+// Setup selection overlay
+auto selectionSource = std::make_shared<Tangram::ClientDataSource>(
+    platform, "selection-overlay", "");
+map->addTileSource(selectionSource);
+
+// Handle click to select feature
+void onMapClick(float screenX, float screenY) {
+    map->pickFeatureAt(screenX, screenY, 
+        [](const Tangram::FeaturePickResult* result) {
+            if (result && result->properties) {
+                // Feature was picked - highlight it
+                highlightSelectedFeature(result);
+            } else {
+                // Clear selection
+                selectionSource->clearFeatures();
+                selectionSource->generateTiles();
+            }
+        });
+}
+
+void highlightSelectedFeature(const Tangram::FeaturePickResult* result) {
+    selectionSource->clearFeatures();
+    
+    // Add selected feature to overlay
+    Tangram::Properties props;
+    props.set("selected", "true");
+    // Copy relevant properties from result->properties
+    
+    // Add feature based on geometry type
+    // Note: You'll need to reconstruct or store the geometry
+    selectionSource->addPointFeature(std::move(props), coordinates);
+    selectionSource->generateTiles();
+}
 ```
 
 ### MBTiles Creation
