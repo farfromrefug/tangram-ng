@@ -394,6 +394,7 @@ public class MapView extends FrameLayout {
         }
         catch (IllegalArgumentException e) {
             Log.e(BuildConfig.TAG, "MapView.onTouchEvent: " + e);
+            return false;
         }
         return true;
     }

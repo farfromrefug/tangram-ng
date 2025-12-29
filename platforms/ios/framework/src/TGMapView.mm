@@ -1434,12 +1434,6 @@ static const float NATIVE_NO_COORDINATE = -1.0f;
     _pointer2 = nil;
 }
 
-// Implement touchesBegan to catch down events (old implementation)
-/*
-- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
-    self.map->handlePanGesture(0.0f, 0.0f, 0.0f, 0.0f);
-}
-
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
 {
     // make shove gesture exclusive

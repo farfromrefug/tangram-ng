@@ -207,7 +207,36 @@ void TouchHandler::dualPointerTilt(const ScreenPos& screenPos1, View& viewState)
 }
 
 float TouchHandler::calculateRotatingScalingFactor(const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
-    // Simplified implementation - returns 0 for now
+    // Calculate the factor to determine if rotating or scaling gesture
+    // Positive values indicate rotation, negative values indicate scaling
+    // This is a simplified implementation - could be enhanced with more sophisticated detection
+    
+    float prevDist = std::sqrt(std::pow(m_prevScreenPos2.x - m_prevScreenPos1.x, 2) +
+                              std::pow(m_prevScreenPos2.y - m_prevScreenPos1.y, 2));
+    float currDist = std::sqrt(std::pow(screenPos2.x - screenPos1.x, 2) +
+                              std::pow(screenPos2.y - screenPos1.y, 2));
+    
+    if (prevDist < 1.0f || currDist < 1.0f) {
+        return 0.0f;
+    }
+    
+    // Calculate angle change
+    float prevAngle = std::atan2(m_prevScreenPos2.y - m_prevScreenPos1.y,
+                                m_prevScreenPos2.x - m_prevScreenPos1.x);
+    float currAngle = std::atan2(screenPos2.y - screenPos1.y,
+                                screenPos2.x - screenPos1.x);
+    float angleChange = std::abs(currAngle - prevAngle);
+    
+    // Calculate scale change  
+    float scaleChange = std::abs(currDist - prevDist) / prevDist;
+    
+    // Return positive for rotation-dominant, negative for scale-dominant
+    if (angleChange > scaleChange * 2.0f) {
+        return angleChange;
+    } else if (scaleChange > angleChange * 2.0f) {
+        return -scaleChange;
+    }
+    
     return 0.0f;
 }
 
@@ -342,6 +371,8 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
         m_pointersDown = std::min(2, m_pointersDown + 1);
     } else if (action == TouchAction::POINTER_1_UP || action == TouchAction::POINTER_2_UP) {
         m_pointersDown = std::max(0, m_pointersDown - 1);
+    } else if (action == TouchAction::CANCEL) {
+        m_pointersDown = 0;
     }
 }
 
