@@ -297,6 +297,12 @@ void NATIVE_METHOD(handleShoveGesture)(JNIEnv* env, jobject obj, jfloat distance
     map->handleShoveGesture(distance);
 }
 
+void NATIVE_METHOD(handleTouchEvent)(JNIEnv* env, jobject obj, jint action, 
+                                     jfloat x1, jfloat y1, jfloat x2, jfloat y2) {
+    auto* map = androidMapFromJava(env, obj);
+    map->handleTouchEvent(action, x1, y1, x2, y2);
+}
+
 void NATIVE_METHOD(onUrlComplete)(JNIEnv* env, jobject obj, jlong requestHandle,
                                   jbyteArray fetchedBytes, jstring errorString) {
     auto* map = androidMapFromJava(env, obj);

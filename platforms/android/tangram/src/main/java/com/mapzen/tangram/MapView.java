@@ -264,12 +264,138 @@ public class MapView extends FrameLayout {
         }
     }
 
+    // New-style touch handling (Carto-like)
+    private static final int NATIVE_ACTION_POINTER_1_DOWN = 0;
+    private static final int NATIVE_ACTION_POINTER_2_DOWN = 1;
+    private static final int NATIVE_ACTION_MOVE = 2;
+    private static final int NATIVE_ACTION_CANCEL = 3;
+    private static final int NATIVE_ACTION_POINTER_1_UP = 4;
+    private static final int NATIVE_ACTION_POINTER_2_UP = 5;
+    private static final float NATIVE_NO_COORDINATE = -1.0f;
+    private static final int INVALID_POINTER_ID = -1;
+
+    private int pointer1Id = INVALID_POINTER_ID;
+    private int pointer2Id = INVALID_POINTER_ID;
+    private boolean useNewTouchHandling = false;
+
+    /**
+     * Enable new touch handling system (similar to Carto Mobile SDK)
+     * This provides more consistent cross-platform touch handling
+     * @param enabled true to use new system, false for legacy gesture-based system
+     */
+    public void setNewTouchHandlingEnabled(boolean enabled) {
+        useNewTouchHandling = enabled;
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         if (mapController != null) {
-            return mapController.handleGesture(this, ev);
+            if (useNewTouchHandling) {
+                return handleTouchEventNew(ev);
+            } else {
+                return mapController.handleGesture(this, ev);
+            }
         }
         return false;
+    }
+
+    private synchronized boolean handleTouchEventNew(MotionEvent event) {
+        if (mapController == null || mapController.nativeMap == null) {
+            return false;
+        }
+
+        boolean clickable = isClickable() || isLongClickable();
+        if (!isEnabled() || !clickable) {
+            return clickable;
+        }
+
+        try {
+            int pointer1Index;
+            int pointer2Index;
+            switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                pointer1Index = event.getActionIndex();
+                pointer1Id = event.getPointerId(pointer1Index);
+                mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_POINTER_1_DOWN,
+                        event.getX(pointer1Index), event.getY(pointer1Index),
+                        NATIVE_NO_COORDINATE, NATIVE_NO_COORDINATE);
+                break;
+            case MotionEvent.ACTION_POINTER_DOWN:
+                if (event.getPointerCount() == 2) {
+                    // Check which pointer to use
+                    if (pointer1Id != INVALID_POINTER_ID) {
+                        pointer1Index = event.findPointerIndex(pointer1Id);
+                        pointer2Index = event.getActionIndex();
+                        pointer2Id = event.getPointerId(event.getActionIndex());
+                    } else if (pointer2Id != INVALID_POINTER_ID) {
+                        pointer2Index = event.findPointerIndex(pointer2Id);
+                        pointer1Index = event.getActionIndex();
+                        pointer1Id = event.getPointerId(event.getActionIndex());
+                    } else {
+                        break;
+                    }
+                    mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_POINTER_2_DOWN,
+                            event.getX(pointer1Index), event.getY(pointer1Index),
+                            event.getX(pointer2Index), event.getY(pointer2Index));
+                }
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (pointer1Id != INVALID_POINTER_ID && pointer2Id == INVALID_POINTER_ID) {
+                    pointer1Index = event.findPointerIndex(pointer1Id);
+                    mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_MOVE,
+                            event.getX(pointer1Index), event.getY(pointer1Index),
+                            NATIVE_NO_COORDINATE, NATIVE_NO_COORDINATE);
+                } else if (pointer1Id != INVALID_POINTER_ID && pointer2Id != INVALID_POINTER_ID) {
+                    pointer1Index = event.findPointerIndex(pointer1Id);
+                    pointer2Index = event.findPointerIndex(pointer2Id);
+                    mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_MOVE,
+                            event.getX(pointer1Index), event.getY(pointer1Index),
+                            event.getX(pointer2Index), event.getY(pointer2Index));
+                }
+                break;
+            case MotionEvent.ACTION_CANCEL:
+                mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_CANCEL,
+                        NATIVE_NO_COORDINATE, NATIVE_NO_COORDINATE,
+                        NATIVE_NO_COORDINATE, NATIVE_NO_COORDINATE);
+                pointer1Id = INVALID_POINTER_ID;
+                pointer2Id = INVALID_POINTER_ID;
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+                int pointerIndex = event.getActionIndex();
+                int pointerId = event.getPointerId(pointerIndex);
+                // Single pointer
+                if (pointer1Id == pointerId && pointer2Id == INVALID_POINTER_ID) {
+                    pointer1Index = event.findPointerIndex(pointer1Id);
+                    mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_POINTER_1_UP,
+                            event.getX(pointer1Index), event.getY(pointer1Index),
+                            NATIVE_NO_COORDINATE, NATIVE_NO_COORDINATE);
+                    pointer1Id = INVALID_POINTER_ID;
+                    // Dual pointer, first pointer up
+                } else if (pointer1Id == pointerId) {
+                    pointer1Index = event.findPointerIndex(pointer1Id);
+                    pointer2Index = event.findPointerIndex(pointer2Id);
+                    mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_POINTER_1_UP,
+                            event.getX(pointer1Index), event.getY(pointer1Index),
+                            event.getX(pointer2Index), event.getY(pointer2Index));
+                    pointer1Id = pointer2Id;
+                    pointer2Id = INVALID_POINTER_ID;
+                    // Dual pointer, second finger up
+                } else if (pointer2Id == pointerId) {
+                    pointer1Index = event.findPointerIndex(pointer1Id);
+                    pointer2Index = event.findPointerIndex(pointer2Id);
+                    mapController.nativeMap.handleTouchEvent(NATIVE_ACTION_POINTER_2_UP,
+                            event.getX(pointer1Index), event.getY(pointer1Index),
+                            event.getX(pointer2Index), event.getY(pointer2Index));
+                    pointer2Id = INVALID_POINTER_ID;
+                }
+                break;
+            }
+        }
+        catch (IllegalArgumentException e) {
+            Log.e(BuildConfig.TAG, "MapView.onTouchEvent: " + e);
+        }
+        return true;
     }
 
     protected MapController getMapInstance(Context context) {

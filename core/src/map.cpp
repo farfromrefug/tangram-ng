@@ -25,6 +25,7 @@
 #include "util/elevationManager.h"
 #include "util/fastmap.h"
 #include "util/inputHandler.h"
+#include "util/touchHandler.h"
 #include "util/ease.h"
 #include "util/jobQueue.h"
 #include "view/flyTo.h"
@@ -34,6 +35,9 @@
 #include <cmath>
 
 namespace Tangram {
+
+using ScreenPos = Tangram::ScreenPos;
+using TouchAction = Tangram::TouchAction;
 
 struct CameraEase {
     struct {
@@ -59,6 +63,7 @@ public:
     explicit Impl(Platform& _platform) :
         platform(_platform),
         inputHandler(view),
+        touchHandler(view),
         scene(std::make_unique<Scene>(_platform)) {}
 
     void setPixelScale(float _pixelsPerPoint);
@@ -76,6 +81,7 @@ public:
 
     std::unique_ptr<AsyncWorker> asyncWorker = std::make_unique<AsyncWorker>("Map worker");
     InputHandler inputHandler;
+    TouchHandler touchHandler;
 
     std::unique_ptr<Ease> ease;
 
@@ -951,6 +957,14 @@ void Map::handleRotateGesture(float _posX, float _posY, float _radians) {
 void Map::handleShoveGesture(float _distance) {
     cancelCameraAnimation();
     impl->inputHandler.handleShoveGesture(_distance);
+    impl->platform.requestRender();
+}
+
+void Map::handleTouchEvent(int action, float x1, float y1, float x2, float y2) {
+    cancelCameraAnimation();
+    ScreenPos pos1(x1, y1);
+    ScreenPos pos2(x2, y2);
+    impl->touchHandler.onTouchEvent(static_cast<TouchAction>(action), pos1, pos2);
     impl->platform.requestRender();
 }
 

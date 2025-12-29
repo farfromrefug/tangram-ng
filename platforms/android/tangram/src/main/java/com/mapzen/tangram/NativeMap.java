@@ -58,6 +58,7 @@ class NativeMap {
     native synchronized void handlePinchGesture(float posX, float posY, float scale, float velocity);
     native synchronized void handleRotateGesture(float posX, float posY, float rotation);
     native synchronized void handleShoveGesture(float distance);
+    native synchronized void handleTouchEvent(int action, float x1, float y1, float x2, float y2);
     native synchronized void setPickRadius(float radius);
     native synchronized void pickFeature(float posX, float posY);
     native synchronized void pickLabel(float posX, float posY);

@@ -444,6 +444,11 @@ public:
     // Respond to a two-finger shove with the given distance in screen coordinates
     void handleShoveGesture(float _distance);
 
+    // Respond to a unified touch event with action and pointer coordinates
+    // Action values: 0=POINTER_1_DOWN, 1=POINTER_2_DOWN, 2=MOVE, 3=CANCEL, 4=POINTER_1_UP, 5=POINTER_2_UP
+    // Coordinates x2/y2 should be -1 when not applicable (single pointer events)
+    void handleTouchEvent(int action, float x1, float y1, float x2, float y2);
+
     // Set whether the OpenGL state will be cached between subsequent frames; this improves rendering
     // efficiency, but can cause errors if your application code makes OpenGL calls (false by default)
     void useCachedGlState(bool _use);
