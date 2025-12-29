@@ -26,6 +26,7 @@
 #include "util/fastmap.h"
 #include "util/inputHandler.h"
 #include "util/touchHandler.h"
+#include "util/touchListener.h"
 #include "util/ease.h"
 #include "util/jobQueue.h"
 #include "view/flyTo.h"
@@ -38,6 +39,7 @@ namespace Tangram {
 
 using ScreenPos = Tangram::ScreenPos;
 using TouchAction = Tangram::TouchAction;
+using OnTouchListener = Tangram::OnTouchListener;
 
 struct CameraEase {
     struct {
@@ -966,6 +968,14 @@ void Map::handleTouchEvent(int action, float x1, float y1, float x2, float y2) {
     ScreenPos pos2(x2, y2);
     impl->touchHandler.onTouchEvent(static_cast<TouchAction>(action), pos1, pos2);
     impl->platform.requestRender();
+}
+
+void Map::addTouchListener(std::shared_ptr<OnTouchListener> listener) {
+    impl->touchHandler.addOnTouchListener(listener);
+}
+
+void Map::removeTouchListener(std::shared_ptr<OnTouchListener> listener) {
+    impl->touchHandler.removeOnTouchListener(listener);
 }
 
 void Map::setupGL() {

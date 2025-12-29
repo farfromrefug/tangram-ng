@@ -1,22 +1,15 @@
 #pragma once
 
 #include "view/view.h"
+#include "util/touchListener.h"
 #include "glm/vec2.hpp"
 
 #include <memory>
 #include <chrono>
+#include <vector>
+#include <mutex>
 
 namespace Tangram {
-
-// Native input action constants matching Carto Mobile SDK
-enum class TouchAction {
-    POINTER_1_DOWN = 0,
-    POINTER_2_DOWN = 1,
-    MOVE = 2,
-    CANCEL = 3,
-    POINTER_1_UP = 4,
-    POINTER_2_UP = 5,
-};
 
 // Gesture mode states
 enum class GestureMode {
@@ -31,21 +24,13 @@ enum class GestureMode {
     DUAL_POINTER_FREE,
 };
 
-// Screen position for touch coordinates
-struct ScreenPos {
-    float x;
-    float y;
-    
-    ScreenPos() : x(0.f), y(0.f) {}
-    ScreenPos(float _x, float _y) : x(_x), y(_y) {}
-};
-
 class TouchHandler {
 public:
     explicit TouchHandler(View& _view);
 
     // Main touch event handler - similar to Carto Mobile SDK
-    void onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2);
+    // Returns true if the event was handled
+    bool onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2);
 
     // Update method for kinetic animations
     bool update(float _dt);
@@ -54,13 +39,20 @@ public:
     void cancel();
 
     void setView(View& _view) { m_view = _view; }
+    
+    // Add/remove touch listeners (called before default handling)
+    void addOnTouchListener(std::shared_ptr<OnTouchListener> listener);
+    void removeOnTouchListener(std::shared_ptr<OnTouchListener> listener);
 
 private:
     // Gesture detection and handling methods
     void singlePointerPan(const ScreenPos& screenPos, View& viewState);
     void singlePointerZoom(const ScreenPos& screenPos, View& viewState);
+    void startSinglePointerZoom(const ScreenPos& screenPos);
     bool singlePointerZoomStop(const ScreenPos& screenPos, View& viewState);
     void doubleTapZoom(const ScreenPos& screenPos, View& viewState);
+    void handleSingleTap(const ScreenPos& screenPos);
+    void handleDoubleTap(const ScreenPos& screenPos);
     
     void startDualPointer(const ScreenPos& screenPos1, const ScreenPos& screenPos2);
     void dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos& screenPos2, View& viewState);
@@ -75,6 +67,10 @@ private:
 
     View& m_view;
     
+    // Touch listeners
+    std::vector<std::shared_ptr<OnTouchListener>> m_onTouchListeners;
+    std::mutex m_onTouchListenersMutex;
+    
     // State tracking
     GestureMode m_gestureMode;
     int m_pointersDown;
@@ -83,9 +79,15 @@ private:
     // Previous positions for gesture tracking
     ScreenPos m_prevScreenPos1;
     ScreenPos m_prevScreenPos2;
+    ScreenPos m_firstTapPos;
     
-    // Timing for dual pointer release
+    // Timing for gesture detection
     std::chrono::steady_clock::time_point m_dualPointerReleaseTime;
+    std::chrono::steady_clock::time_point m_firstTapTime;
+    std::chrono::steady_clock::time_point m_pointer1DownTime;
+    
+    // Zoom tracking for double-tap-and-drag
+    float m_singlePointerZoomStartZoom;
     
     // Velocity for kinetic scrolling
     glm::vec2 m_velocityPan;
@@ -95,6 +97,8 @@ private:
     static constexpr float ROTATION_SCALING_FACTOR_THRESHOLD_STICKY = 0.3f;
     static constexpr std::chrono::milliseconds DUAL_STOP_HOLD_DURATION{500};
     static constexpr std::chrono::milliseconds DUAL_KINETIC_HOLD_DURATION{200};
+    static constexpr std::chrono::milliseconds DOUBLE_TAP_TIMEOUT{300};
+    static constexpr float TAP_MOVEMENT_THRESHOLD = 10.0f; // pixels
 };
 
 }

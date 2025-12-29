@@ -17,6 +17,7 @@ class TileSource;
 class View;
 class Scene;
 class SceneOptions;
+class OnTouchListener;
 
 enum LabelType {
     icon,
@@ -448,6 +449,11 @@ public:
     // Action values: 0=POINTER_1_DOWN, 1=POINTER_2_DOWN, 2=MOVE, 3=CANCEL, 4=POINTER_1_UP, 5=POINTER_2_UP
     // Coordinates x2/y2 should be -1 when not applicable (single pointer events)
     void handleTouchEvent(int action, float x1, float y1, float x2, float y2);
+    
+    // Add/remove touch event listeners for the new touch handling system
+    // Listeners are called before default handling and can consume events
+    void addTouchListener(std::shared_ptr<OnTouchListener> listener);
+    void removeTouchListener(std::shared_ptr<OnTouchListener> listener);
 
     // Set whether the OpenGL state will be cached between subsequent frames; this improves rendering
     // efficiency, but can cause errors if your application code makes OpenGL calls (false by default)

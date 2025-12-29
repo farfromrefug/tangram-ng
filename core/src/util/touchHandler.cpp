@@ -1,6 +1,8 @@
 #include "util/touchHandler.h"
+#include "util/touchListener.h"
 #include "glm/gtx/rotate_vector.hpp"
 #include <cmath>
+#include <algorithm>
 
 // Damping factor for translation; reciprocal of the decay period in seconds
 #define DAMPING_PAN 4.0f
@@ -27,7 +29,7 @@
 #define MAX_PITCH_FOR_PAN_LIMITING 75.0f
 
 // Zoom sensitivity for single pointer zoom (zoom units per pixel)
-#define SINGLE_POINTER_ZOOM_SENSITIVITY 0.01f
+#define SINGLE_POINTER_ZOOM_SENSITIVITY 0.005f
 
 namespace Tangram {
 
@@ -36,9 +38,12 @@ TouchHandler::TouchHandler(View& _view)
       m_gestureMode(GestureMode::SINGLE_POINTER_CLICK_GUESS),
       m_pointersDown(0),
       m_noDualPointerYet(true),
+      m_singlePointerZoomStartZoom(0.f),
       m_velocityPan(0.f, 0.f),
       m_velocityZoom(0.f),
-      m_dualPointerReleaseTime(std::chrono::steady_clock::now()) {
+      m_dualPointerReleaseTime(std::chrono::steady_clock::now()),
+      m_firstTapTime(std::chrono::steady_clock::now()),
+      m_pointer1DownTime(std::chrono::steady_clock::now()) {
 }
 
 bool TouchHandler::update(float _dt) {
@@ -62,6 +67,19 @@ void TouchHandler::cancel() {
     setVelocity(0.f, glm::vec2(0.f, 0.f));
     m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
     m_pointersDown = 0;
+}
+
+void TouchHandler::addOnTouchListener(std::shared_ptr<OnTouchListener> listener) {
+    std::lock_guard<std::mutex> lock(m_onTouchListenersMutex);
+    m_onTouchListeners.push_back(listener);
+}
+
+void TouchHandler::removeOnTouchListener(std::shared_ptr<OnTouchListener> listener) {
+    std::lock_guard<std::mutex> lock(m_onTouchListenersMutex);
+    m_onTouchListeners.erase(
+        std::remove(m_onTouchListeners.begin(), m_onTouchListeners.end(), listener),
+        m_onTouchListeners.end()
+    );
 }
 
 glm::vec2 TouchHandler::getTranslation(float _startX, float _startY, float _endX, float _endY) {
@@ -96,27 +114,49 @@ void TouchHandler::singlePointerPan(const ScreenPos& screenPos, View& viewState)
     m_prevScreenPos1 = screenPos;
 }
 
+void TouchHandler::startSinglePointerZoom(const ScreenPos& screenPos) {
+    m_singlePointerZoomStartZoom = m_view.getZoom();
+    m_prevScreenPos1 = screenPos;
+    m_gestureMode = GestureMode::SINGLE_POINTER_ZOOM;
+}
+
 void TouchHandler::singlePointerZoom(const ScreenPos& screenPos, View& viewState) {
-    // Implement single pointer zoom (e.g., double-tap and drag)
+    // Implement single pointer zoom (double-tap and drag)
     float deltaY = screenPos.y - m_prevScreenPos1.y;
     float zoomDelta = -deltaY * SINGLE_POINTER_ZOOM_SENSITIVITY;
     
-    // Get the fixed point for zooming
+    // Get the fixed point for zooming (at the center of the screen or tap point)
     float elev;
-    m_view.screenPositionToLngLat(screenPos.x, screenPos.y, &elev);
-    auto start = m_view.screenToGroundPlane(screenPos.x, screenPos.y, elev);
+    m_view.screenPositionToLngLat(m_prevScreenPos1.x, m_prevScreenPos1.y, &elev);
+    auto start = m_view.screenToGroundPlane(m_prevScreenPos1.x, m_prevScreenPos1.y, elev);
     
     m_view.zoom(zoomDelta);
     
-    auto end = m_view.screenToGroundPlane(screenPos.x, screenPos.y, elev);
+    auto end = m_view.screenToGroundPlane(m_prevScreenPos1.x, m_prevScreenPos1.y, elev);
     m_view.translate(start - end);
     
     m_prevScreenPos1 = screenPos;
 }
 
 bool TouchHandler::singlePointerZoomStop(const ScreenPos& screenPos, View& viewState) {
-    // Return true if we should perform a double-tap zoom
-    return false; // Simplified for now
+    // Return false - double-tap zoom is handled separately now
+    return false;
+}
+
+void TouchHandler::handleSingleTap(const ScreenPos& screenPos) {
+    // Pan to center the tapped location
+    float viewCenterX = 0.5f * m_view.getWidth();
+    float viewCenterY = 0.5f * m_view.getHeight();
+
+    auto center = m_view.screenToGroundPlane(viewCenterX, viewCenterY);
+    auto pos = m_view.screenToGroundPlane(screenPos.x, screenPos.y);
+
+    m_view.translate(pos - center);
+}
+
+void TouchHandler::handleDoubleTap(const ScreenPos& screenPos) {
+    // Start double-tap-and-drag zoom or just zoom
+    doubleTapZoom(screenPos, m_view);
 }
 
 void TouchHandler::doubleTapZoom(const ScreenPos& screenPos, View& viewState) {
@@ -126,6 +166,7 @@ void TouchHandler::doubleTapZoom(const ScreenPos& screenPos, View& viewState) {
     m_view.screenPositionToLngLat(screenPos.x, screenPos.y, &elev);
     auto start = m_view.screenToGroundPlane(screenPos.x, screenPos.y, elev);
     
+    // Zoom in by 2x
     m_view.zoom(std::log2(2.f));
     
     auto end = m_view.screenToGroundPlane(screenPos.x, screenPos.y, elev);
@@ -247,14 +288,49 @@ float TouchHandler::calculateRotatingScalingFactor(const ScreenPos& screenPos1, 
 }
 
 void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
+    // Call listeners first - they can consume the event
+    {
+        std::vector<std::shared_ptr<OnTouchListener>> listeners;
+        {
+            std::lock_guard<std::mutex> lock(m_onTouchListenersMutex);
+            listeners = m_onTouchListeners;
+        }
+        // Call in reverse order like Carto does (last added gets first chance)
+        for (auto it = listeners.rbegin(); it != listeners.rend(); ++it) {
+            if ((*it)->onTouchEvent(action, screenPos1, screenPos2)) {
+                return; // Event consumed
+            }
+        }
+    }
+    
     View& viewState = m_view;
+    auto now = std::chrono::steady_clock::now();
     
     switch (action) {
     case TouchAction::POINTER_1_DOWN:
+        m_pointer1DownTime = now;
         m_noDualPointerYet = true;
         setVelocity(0.f, glm::vec2(0.f, 0.f));
         m_prevScreenPos1 = screenPos1;
-        m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+        
+        // Check for double-tap
+        auto timeSinceFirstTap = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_firstTapTime);
+        float distFromFirstTap = std::sqrt(
+            std::pow(screenPos1.x - m_firstTapPos.x, 2) + 
+            std::pow(screenPos1.y - m_firstTapPos.y, 2)
+        );
+        
+        if (timeSinceFirstTap < DOUBLE_TAP_TIMEOUT && 
+            distFromFirstTap < TAP_MOVEMENT_THRESHOLD &&
+            m_gestureMode == GestureMode::SINGLE_POINTER_CLICK_GUESS) {
+            // This is a double-tap - start zoom mode
+            startSinglePointerZoom(screenPos1);
+        } else {
+            // Start tracking for potential first tap
+            m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+            m_firstTapTime = now;
+            m_firstTapPos = screenPos1;
+        }
         break;
         
     case TouchAction::POINTER_2_DOWN:
@@ -275,9 +351,18 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
     case TouchAction::MOVE:
         switch (m_gestureMode) {
         case GestureMode::SINGLE_POINTER_CLICK_GUESS:
-            // Transition to pan if moved enough
-            m_gestureMode = GestureMode::SINGLE_POINTER_PAN;
-            m_prevScreenPos1 = screenPos1;
+            {
+                // Check if moved too far to be a tap
+                float dist = std::sqrt(
+                    std::pow(screenPos1.x - m_prevScreenPos1.x, 2) + 
+                    std::pow(screenPos1.y - m_prevScreenPos1.y, 2)
+                );
+                if (dist > TAP_MOVEMENT_THRESHOLD) {
+                    // Transition to pan
+                    m_gestureMode = GestureMode::SINGLE_POINTER_PAN;
+                    m_prevScreenPos1 = screenPos1;
+                }
+            }
             break;
         case GestureMode::DUAL_POINTER_CLICK_GUESS:
             m_gestureMode = GestureMode::DUAL_POINTER_GUESS;
@@ -320,35 +405,50 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
         break;
         
     case TouchAction::POINTER_1_UP:
-        switch (m_gestureMode) {
-        case GestureMode::SINGLE_POINTER_CLICK_GUESS:
-            // Handle single tap
-            break;
-        case GestureMode::DUAL_POINTER_CLICK_GUESS:
-            m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
-            break;
-        case GestureMode::SINGLE_POINTER_PAN:
-            m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
-            if (m_noDualPointerYet) {
-                // Start kinetic pan
-                setVelocity(0.f, m_velocityPan);
+        {
+            auto tapDuration = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_pointer1DownTime);
+            float moveDist = std::sqrt(
+                std::pow(screenPos1.x - m_prevScreenPos1.x, 2) + 
+                std::pow(screenPos1.y - m_prevScreenPos1.y, 2)
+            );
+            
+            switch (m_gestureMode) {
+            case GestureMode::SINGLE_POINTER_CLICK_GUESS:
+                // This was a tap - but wait to see if it's a double-tap
+                // Don't call handleSingleTap yet
+                m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+                break;
+            case GestureMode::DUAL_POINTER_CLICK_GUESS:
+                m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+                break;
+            case GestureMode::SINGLE_POINTER_PAN:
+                m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+                if (m_noDualPointerYet) {
+                    // Start kinetic pan
+                    setVelocity(0.f, m_velocityPan);
+                }
+                break;
+            case GestureMode::SINGLE_POINTER_ZOOM:
+                // Finger lifted after double-tap zoom or during drag zoom
+                // If it was a quick tap without much movement, do an instant zoom
+                if (tapDuration < DOUBLE_TAP_TIMEOUT && moveDist < TAP_MOVEMENT_THRESHOLD) {
+                    handleDoubleTap(screenPos1);
+                }
+                m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+                if (m_noDualPointerYet) {
+                    setVelocity(m_velocityZoom, glm::vec2(0.f, 0.f));
+                }
+                break;
+            case GestureMode::DUAL_POINTER_GUESS:
+            case GestureMode::DUAL_POINTER_TILT:
+            case GestureMode::DUAL_POINTER_ROTATE:
+            case GestureMode::DUAL_POINTER_SCALE:
+            case GestureMode::DUAL_POINTER_FREE:
+                m_dualPointerReleaseTime = std::chrono::steady_clock::now();
+                m_prevScreenPos1 = screenPos2;
+                m_gestureMode = GestureMode::SINGLE_POINTER_PAN;
+                break;
             }
-            break;
-        case GestureMode::SINGLE_POINTER_ZOOM:
-            if (singlePointerZoomStop(screenPos1, viewState)) {
-                doubleTapZoom(screenPos1, viewState);
-            }
-            m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
-            break;
-        case GestureMode::DUAL_POINTER_GUESS:
-        case GestureMode::DUAL_POINTER_TILT:
-        case GestureMode::DUAL_POINTER_ROTATE:
-        case GestureMode::DUAL_POINTER_SCALE:
-        case GestureMode::DUAL_POINTER_FREE:
-            m_dualPointerReleaseTime = std::chrono::steady_clock::now();
-            m_prevScreenPos1 = screenPos2;
-            m_gestureMode = GestureMode::SINGLE_POINTER_PAN;
-            break;
         }
         break;
         
