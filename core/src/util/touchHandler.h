@@ -11,6 +11,16 @@
 
 namespace Tangram {
 
+// Touch action constants for internal use
+enum class TouchAction {
+    POINTER_1_DOWN = 0,
+    POINTER_2_DOWN = 1,
+    MOVE = 2,
+    CANCEL = 3,
+    POINTER_1_UP = 4,
+    POINTER_2_UP = 5,
+};
+
 // Gesture mode states
 enum class GestureMode {
     SINGLE_POINTER_CLICK_GUESS = 0,
@@ -40,9 +50,11 @@ public:
 
     void setView(View& _view) { m_view = _view; }
     
-    // Add/remove touch listeners (called before default handling)
-    void addOnTouchListener(std::shared_ptr<OnTouchListener> listener);
-    void removeOnTouchListener(std::shared_ptr<OnTouchListener> listener);
+    // Add/remove map click listeners
+    void setMapClickListener(std::shared_ptr<MapClickListener> listener);
+    
+    // Add/remove map interaction listeners
+    void setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener);
 
 private:
     // Gesture detection and handling methods
@@ -67,14 +79,16 @@ private:
 
     View& m_view;
     
-    // Touch listeners
-    std::vector<std::shared_ptr<OnTouchListener>> m_onTouchListeners;
-    std::mutex m_onTouchListenersMutex;
+    // Map event listeners
+    std::shared_ptr<MapClickListener> m_mapClickListener;
+    std::shared_ptr<MapInteractionListener> m_mapInteractionListener;
+    std::mutex m_listenersMutex;
     
     // State tracking
     GestureMode m_gestureMode;
     int m_pointersDown;
     bool m_noDualPointerYet;
+    bool m_interactionConsumed; // Track if listener consumed the interaction
     
     // Previous positions for gesture tracking
     ScreenPos m_prevScreenPos1;

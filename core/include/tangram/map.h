@@ -17,7 +17,8 @@ class TileSource;
 class View;
 class Scene;
 class SceneOptions;
-class OnTouchListener;
+class MapClickListener;
+class MapInteractionListener;
 
 enum LabelType {
     icon,
@@ -450,10 +451,13 @@ public:
     // Coordinates x2/y2 should be -1 when not applicable (single pointer events)
     void handleTouchEvent(int action, float x1, float y1, float x2, float y2);
     
-    // Add/remove touch event listeners for the new touch handling system
-    // Listeners are called before default handling and can consume events
-    void addTouchListener(std::shared_ptr<OnTouchListener> listener);
-    void removeTouchListener(std::shared_ptr<OnTouchListener> listener);
+    // Set listener for map click events (single tap)
+    // Listener can return true to prevent default centering behavior
+    void setMapClickListener(std::shared_ptr<MapClickListener> listener);
+    
+    // Set listener for map interaction events (panning, zooming, rotating, tilting)
+    // Listener can return true to prevent all default interaction behavior
+    void setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener);
 
     // Set whether the OpenGL state will be cached between subsequent frames; this improves rendering
     // efficiency, but can cause errors if your application code makes OpenGL calls (false by default)

@@ -1035,6 +1035,23 @@ public class MapController {
         mapChangeListener = listener;
     }
 
+    /**
+     * Set a listener for map click events (single tap)
+     * @param listener The {@link MapClickListener} to call when the user taps the map
+     */
+    public void setMapClickListener(@Nullable final MapClickListener listener) {
+        mapClickListener = listener;
+        // TODO: Register listener with native touch handler via JNI
+    }
+
+    /**
+     * Set a listener for map interaction events (panning, zooming, rotating, tilting)
+     * @param listener The {@link MapInteractionListener} to call when the user interacts with the map
+     */
+    public void setMapInteractionListener(@Nullable final MapInteractionListener listener) {
+        mapInteractionListener = listener;
+        // TODO: Register listener with native touch handler via JNI
+    }
 
     void setMapRegionState(MapRegionChangeState state) {
 
@@ -1350,6 +1367,9 @@ public class MapController {
     private SceneLoadListener sceneLoadListener;
     private LabelPickListener labelPickListener;
     private MarkerPickListener markerPickListener;
+    private MapChangeListener mapChangeListener;
+    private MapClickListener mapClickListener;
+    private MapInteractionListener mapInteractionListener;
     private final Map<String, MapData> clientTileSources;
     private final LongSparseArray<Marker> markers = new LongSparseArray<>();
     private Handler uiThreadHandler;

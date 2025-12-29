@@ -39,7 +39,8 @@ namespace Tangram {
 
 using ScreenPos = Tangram::ScreenPos;
 using TouchAction = Tangram::TouchAction;
-using OnTouchListener = Tangram::OnTouchListener;
+using MapClickListener = Tangram::MapClickListener;
+using MapInteractionListener = Tangram::MapInteractionListener;
 
 struct CameraEase {
     struct {
@@ -970,12 +971,12 @@ void Map::handleTouchEvent(int action, float x1, float y1, float x2, float y2) {
     impl->platform.requestRender();
 }
 
-void Map::addTouchListener(std::shared_ptr<OnTouchListener> listener) {
-    impl->touchHandler.addOnTouchListener(listener);
+void Map::setMapClickListener(std::shared_ptr<MapClickListener> listener) {
+    impl->touchHandler.setMapClickListener(listener);
 }
 
-void Map::removeTouchListener(std::shared_ptr<OnTouchListener> listener) {
-    impl->touchHandler.removeOnTouchListener(listener);
+void Map::setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener) {
+    impl->touchHandler.setMapInteractionListener(listener);
 }
 
 void Map::setupGL() {

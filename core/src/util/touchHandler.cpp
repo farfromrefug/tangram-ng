@@ -38,6 +38,7 @@ TouchHandler::TouchHandler(View& _view)
       m_gestureMode(GestureMode::SINGLE_POINTER_CLICK_GUESS),
       m_pointersDown(0),
       m_noDualPointerYet(true),
+      m_interactionConsumed(false),
       m_singlePointerZoomStartZoom(0.f),
       m_velocityPan(0.f, 0.f),
       m_velocityZoom(0.f),
@@ -67,19 +68,17 @@ void TouchHandler::cancel() {
     setVelocity(0.f, glm::vec2(0.f, 0.f));
     m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
     m_pointersDown = 0;
+    m_interactionConsumed = false;
 }
 
-void TouchHandler::addOnTouchListener(std::shared_ptr<OnTouchListener> listener) {
-    std::lock_guard<std::mutex> lock(m_onTouchListenersMutex);
-    m_onTouchListeners.push_back(listener);
+void TouchHandler::setMapClickListener(std::shared_ptr<MapClickListener> listener) {
+    std::lock_guard<std::mutex> lock(m_listenersMutex);
+    m_mapClickListener = listener;
 }
 
-void TouchHandler::removeOnTouchListener(std::shared_ptr<OnTouchListener> listener) {
-    std::lock_guard<std::mutex> lock(m_onTouchListenersMutex);
-    m_onTouchListeners.erase(
-        std::remove(m_onTouchListeners.begin(), m_onTouchListeners.end(), listener),
-        m_onTouchListeners.end()
-    );
+void TouchHandler::setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener) {
+    std::lock_guard<std::mutex> lock(m_listenersMutex);
+    m_mapInteractionListener = listener;
 }
 
 glm::vec2 TouchHandler::getTranslation(float _startX, float _startY, float _endX, float _endY) {
@@ -144,7 +143,18 @@ bool TouchHandler::singlePointerZoomStop(const ScreenPos& screenPos, View& viewS
 }
 
 void TouchHandler::handleSingleTap(const ScreenPos& screenPos) {
-    // Pan to center the tapped location
+    // Call map click listener first
+    {
+        std::lock_guard<std::mutex> lock(m_listenersMutex);
+        if (m_mapClickListener) {
+            bool consumed = m_mapClickListener->onMapClick(screenPos.x, screenPos.y);
+            if (consumed) {
+                return; // Listener consumed the click
+            }
+        }
+    }
+    
+    // Default behavior: Pan to center the tapped location
     float viewCenterX = 0.5f * m_view.getWidth();
     float viewCenterY = 0.5f * m_view.getHeight();
 
@@ -288,21 +298,6 @@ float TouchHandler::calculateRotatingScalingFactor(const ScreenPos& screenPos1, 
 }
 
 void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
-    // Call listeners first - they can consume the event
-    {
-        std::vector<std::shared_ptr<OnTouchListener>> listeners;
-        {
-            std::lock_guard<std::mutex> lock(m_onTouchListenersMutex);
-            listeners = m_onTouchListeners;
-        }
-        // Call in reverse order like Carto does (last added gets first chance)
-        for (auto it = listeners.rbegin(); it != listeners.rend(); ++it) {
-            if ((*it)->onTouchEvent(action, screenPos1, screenPos2)) {
-                return; // Event consumed
-            }
-        }
-    }
-    
     View& viewState = m_view;
     auto now = std::chrono::steady_clock::now();
     
@@ -310,6 +305,7 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
     case TouchAction::POINTER_1_DOWN:
         m_pointer1DownTime = now;
         m_noDualPointerYet = true;
+        m_interactionConsumed = false;
         setVelocity(0.f, glm::vec2(0.f, 0.f));
         m_prevScreenPos1 = screenPos1;
         
@@ -324,7 +320,18 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
             distFromFirstTap < TAP_MOVEMENT_THRESHOLD &&
             m_gestureMode == GestureMode::SINGLE_POINTER_CLICK_GUESS) {
             // This is a double-tap - start zoom mode
-            startSinglePointerZoom(screenPos1);
+            // Call interaction listener for zooming
+            {
+                std::lock_guard<std::mutex> lock(m_listenersMutex);
+                if (m_mapInteractionListener) {
+                    m_interactionConsumed = m_mapInteractionListener->onMapInteraction(false, true, false, false);
+                }
+            }
+            if (!m_interactionConsumed) {
+                startSinglePointerZoom(screenPos1);
+            } else {
+                m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+            }
         } else {
             // Start tracking for potential first tap
             m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
@@ -349,6 +356,11 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
         break;
         
     case TouchAction::MOVE:
+        // Skip if interaction was consumed
+        if (m_interactionConsumed) {
+            break;
+        }
+        
         switch (m_gestureMode) {
         case GestureMode::SINGLE_POINTER_CLICK_GUESS:
             {
@@ -358,16 +370,34 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
                     std::pow(screenPos1.y - m_prevScreenPos1.y, 2)
                 );
                 if (dist > TAP_MOVEMENT_THRESHOLD) {
-                    // Transition to pan
-                    m_gestureMode = GestureMode::SINGLE_POINTER_PAN;
-                    m_prevScreenPos1 = screenPos1;
+                    // Transition to pan - call interaction listener
+                    {
+                        std::lock_guard<std::mutex> lock(m_listenersMutex);
+                        if (m_mapInteractionListener) {
+                            m_interactionConsumed = m_mapInteractionListener->onMapInteraction(true, false, false, false);
+                        }
+                    }
+                    if (!m_interactionConsumed) {
+                        m_gestureMode = GestureMode::SINGLE_POINTER_PAN;
+                        m_prevScreenPos1 = screenPos1;
+                    }
                 }
             }
             break;
         case GestureMode::DUAL_POINTER_CLICK_GUESS:
-            m_gestureMode = GestureMode::DUAL_POINTER_GUESS;
-            m_prevScreenPos1 = screenPos1;
-            m_prevScreenPos2 = screenPos2;
+            {
+                // Transition to dual pointer - call interaction listener  
+                std::lock_guard<std::mutex> lock(m_listenersMutex);
+                if (m_mapInteractionListener) {
+                    // We don't know yet what type of gesture it will be
+                    m_interactionConsumed = m_mapInteractionListener->onMapInteraction(true, true, true, true);
+                }
+            }
+            if (!m_interactionConsumed) {
+                m_gestureMode = GestureMode::DUAL_POINTER_GUESS;
+                m_prevScreenPos1 = screenPos1;
+                m_prevScreenPos2 = screenPos2;
+            }
             break;
         case GestureMode::SINGLE_POINTER_PAN:
             {
@@ -414,8 +444,11 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
             
             switch (m_gestureMode) {
             case GestureMode::SINGLE_POINTER_CLICK_GUESS:
-                // This was a tap - but wait to see if it's a double-tap
-                // Don't call handleSingleTap yet
+                // This was a tap - check if it qualifies as a click
+                if (tapDuration < DOUBLE_TAP_TIMEOUT && moveDist < TAP_MOVEMENT_THRESHOLD) {
+                    // This is a single tap - call handleSingleTap which checks the listener
+                    handleSingleTap(screenPos1);
+                }
                 m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
                 break;
             case GestureMode::DUAL_POINTER_CLICK_GUESS:
@@ -423,6 +456,7 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
                 break;
             case GestureMode::SINGLE_POINTER_PAN:
                 m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+                m_interactionConsumed = false;
                 if (m_noDualPointerYet) {
                     // Start kinetic pan
                     setVelocity(0.f, m_velocityPan);
@@ -435,6 +469,7 @@ void TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
                     handleDoubleTap(screenPos1);
                 }
                 m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
+                m_interactionConsumed = false;
                 if (m_noDualPointerYet) {
                     setVelocity(m_velocityZoom, glm::vec2(0.f, 0.f));
                 }

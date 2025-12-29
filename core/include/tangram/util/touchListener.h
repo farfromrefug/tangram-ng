@@ -1,16 +1,9 @@
 #pragma once
 
-namespace Tangram {
+#include <memory>
+#include <functional>
 
-// Touch action constants
-enum class TouchAction {
-    POINTER_1_DOWN = 0,
-    POINTER_2_DOWN = 1,
-    MOVE = 2,
-    CANCEL = 3,
-    POINTER_1_UP = 4,
-    POINTER_2_UP = 5,
-};
+namespace Tangram {
 
 // Screen position for touch coordinates
 struct ScreenPos {
@@ -21,16 +14,28 @@ struct ScreenPos {
     ScreenPos(float _x, float _y) : x(_x), y(_y) {}
 };
 
-// Touch event listener interface
-// Listeners can intercept touch events before they are processed by the default handler
-class OnTouchListener {
+// Map click listener interface
+// Called when the user performs a single tap on the map
+class MapClickListener {
 public:
-    virtual ~OnTouchListener() = default;
+    virtual ~MapClickListener() = default;
     
-    // Called when a touch event occurs
-    // Return true to consume the event and prevent default handling
-    // Return false to allow default handling to proceed
-    virtual bool onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2) = 0;
+    // Called when a single tap occurs
+    // Return true to consume the event and prevent default behavior (centering)
+    // Return false to allow default handling
+    virtual bool onMapClick(float x, float y) = 0;
+};
+
+// Map interaction listener interface  
+// Called when the user is interacting with the map (panning, zooming, rotating, tilting)
+class MapInteractionListener {
+public:
+    virtual ~MapInteractionListener() = default;
+    
+    // Called when map interaction starts
+    // Return true to consume all interaction events and prevent default behavior
+    // Return false to allow default handling
+    virtual bool onMapInteraction(bool isPanning, bool isZooming, bool isRotating, bool isTilting) = 0;
 };
 
 }
