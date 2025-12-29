@@ -254,7 +254,7 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
     }
 
     @Override
-    public boolean onDoubleTap(float x, float y) {
+    public boolean onDoubleTap(float x, float y, int nbTouches) {
 
         LngLat tapped = map.screenPositionToLngLat(new PointF(x, y));
 
