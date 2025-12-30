@@ -1063,6 +1063,25 @@ public class MapController {
     public void setDpi(float dpi) {
         nativeMap.setDpi(dpi);
     }
+    
+    /**
+     * Set the panning mode for dual-finger gestures when using new touch handling.
+     * @param mode The panning mode: 0 = FREE, 1 = STICKY, 2 = STICKY_FINAL
+     * FREE (0): Allows simultaneous rotation and scaling (default)
+     * STICKY (1): Separates rotate and scale gestures, allows switching during touch
+     * STICKY_FINAL (2): Locks to first detected gesture until fingers lift
+     */
+    public void setPanningMode(int mode) {
+        nativeMap.setPanningMode(mode);
+    }
+    
+    /**
+     * Get the current panning mode for dual-finger gestures.
+     * @return The panning mode: 0 = FREE, 1 = STICKY, 2 = STICKY_FINAL
+     */
+    public int getPanningMode() {
+        return nativeMap.getPanningMode();
+    }
 
     void setMapRegionState(MapRegionChangeState state) {
 

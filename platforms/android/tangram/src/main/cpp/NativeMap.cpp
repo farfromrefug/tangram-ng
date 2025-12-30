@@ -308,6 +308,16 @@ void NATIVE_METHOD(setDpi)(JNIEnv* env, jobject obj, jfloat dpi) {
     map->setTouchGestureDpi(dpi);
 }
 
+void NATIVE_METHOD(setPanningMode)(JNIEnv* env, jobject obj, jint mode) {
+    auto* map = androidMapFromJava(env, obj);
+    map->setPanningMode(mode);
+}
+
+jint NATIVE_METHOD(getPanningMode)(JNIEnv* env, jobject obj) {
+    auto* map = androidMapFromJava(env, obj);
+    return map->getPanningMode();
+}
+
 void NATIVE_METHOD(onUrlComplete)(JNIEnv* env, jobject obj, jlong requestHandle,
                                   jbyteArray fetchedBytes, jstring errorString) {
     auto* map = androidMapFromJava(env, obj);

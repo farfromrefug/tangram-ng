@@ -39,8 +39,9 @@ class Map;
 
 // Panning mode for dual pointer gestures (following Carto Mobile SDK)
 enum class PanningMode {
-    FREE,    // Allows simultaneous rotation and scaling
-    STICKY,  // Separates rotate and scale gestures based on intent
+    FREE = 0,          // Allows simultaneous rotation and scaling
+    STICKY = 1,        // Separates rotate and scale gestures, but allows switching
+    STICKY_FINAL = 2,  // Locks to first detected gesture until fingers lift
 };
 
 class TouchHandler {

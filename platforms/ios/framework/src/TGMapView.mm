@@ -1362,6 +1362,21 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
     }
 }
 
+- (void)setPanningMode:(int)mode
+{
+    if (self.map) {
+        self.map->setPanningMode(mode);
+    }
+}
+
+- (int)getPanningMode
+{
+    if (self.map) {
+        return self.map->getPanningMode();
+    }
+    return 0; // DEFAULT: FREE
+}
+
 static const int NATIVE_ACTION_POINTER_1_DOWN = 0;
 static const int NATIVE_ACTION_POINTER_2_DOWN = 1;
 static const int NATIVE_ACTION_MOVE = 2;
