@@ -120,18 +120,7 @@ Map::Map(std::unique_ptr<Platform> _platform) : platform(std::move(_platform)) {
     // Set animated zoom callback for touch handler
     impl->touchHandler.setAnimatedZoomCallback([this](float x, float y, float zoomDelta, float duration) {
         // Get the position at the tap/touch point
-        float elev;
-        impl->view.screenPositionToLngLat(x, y, &elev);
-        glm::dvec2 screenPos = impl->view.screenToGroundPlane(x, y, elev);
-        LngLat tapLngLat = MapProjection::projectedMetersToLngLat(screenPos);
-        
-        // Create camera update for zoom
-        CameraPosition camera = getCameraPosition();
-        camera.zoom += zoomDelta;
-        camera.setLngLat(tapLngLat); // Keep the tap position centered
-        
-        // Animate to new zoom level
-        setCameraPositionEased(camera, duration, EaseType::CUBIC);
+        handleDoubleTapGesture(x, y, zoomDelta < 0);
     });
 }
 
