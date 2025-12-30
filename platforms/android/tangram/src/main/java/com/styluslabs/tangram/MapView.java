@@ -200,6 +200,10 @@ public class MapView extends FrameLayout {
             now = System.currentTimeMillis();
             Log.d(BuildConfig.TAG, "MapController init took " + (now - time) + "ms");
 
+            // Automatically set DPI from system
+            float dpi = getResources().getDisplayMetrics().densityDpi;
+            mapController.setDpi(dpi);
+
             addView(viewHolder.getView());
         }
         return mapController;
@@ -303,23 +307,16 @@ public class MapView extends FrameLayout {
      */
     public void setNewTouchHandlingEnabled(boolean enabled) {
         useNewTouchHandling = enabled;
-        
-        // Automatically set DPI when enabling new touch handling
-        if (enabled && mapController != null) {
-            float dpi = getResources().getDisplayMetrics().densityDpi;
-            mapController.setTouchGestureDpi(dpi);
-        }
     }
     
     /**
      * Set DPI for touch gesture calculations (affects gesture detection thresholds)
-     * This is automatically called when enabling new touch handling, but can be
-     * overridden if needed for testing or special cases.
+     * This is automatically set from the system DPI, but can be overridden if needed.
      * @param dpi The screen DPI to use for gesture calculations
      */
-    public void setTouchGestureDpi(float dpi) {
+    public void setDpi(float dpi) {
         if (mapController != null) {
-            mapController.setTouchGestureDpi(dpi);
+            mapController.setDpi(dpi);
         }
     }
 

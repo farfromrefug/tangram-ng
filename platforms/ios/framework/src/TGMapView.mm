@@ -311,6 +311,10 @@ static const CGFloat kPanZoomSensitivity = 0.005f; // zoom units per screen poin
 {
     __weak TGMapView* weakSelf = self;
     _map = new Tangram::Map(std::make_unique<Tangram::iOSPlatform>(weakSelf));
+    
+    // Automatically set DPI from system
+    float dpi = [[UIScreen mainScreen] scale] * 160.0f; // iOS uses scale factor, convert to DPI (160 is baseline DPI)
+    _map->setTouchGestureDpi(dpi);
 
     NSNotificationCenter* notificationCenter = [NSNotificationCenter defaultCenter];
     [notificationCenter addObserver:self
@@ -1349,15 +1353,9 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
 - (void)setUseNewTouchHandling:(BOOL)useNewTouchHandling
 {
     _useNewTouchHandling = useNewTouchHandling;
-    
-    // Automatically set DPI when enabling new touch handling
-    if (useNewTouchHandling && self.map) {
-        float dpi = [[UIScreen mainScreen] scale] * 160.0f; // iOS uses scale factor, convert to DPI
-        self.map->setTouchGestureDpi(dpi);
-    }
 }
 
-- (void)setTouchGestureDpi:(float)dpi
+- (void)setDpi:(float)dpi
 {
     if (self.map) {
         self.map->setTouchGestureDpi(dpi);

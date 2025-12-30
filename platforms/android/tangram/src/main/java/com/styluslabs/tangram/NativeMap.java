@@ -78,7 +78,7 @@ class NativeMap {
     native synchronized void useCachedGlState(boolean use);
     native synchronized void setDefaultBackgroundColor(float r, float g, float b);
 
-    native synchronized void setTouchGestureDpi(float dpi);
+    native synchronized void setDpi(float dpi);
 
     native synchronized long addClientDataSource(String name, boolean generateCentroid);
     native synchronized void removeClientDataSource(long sourcePtr);

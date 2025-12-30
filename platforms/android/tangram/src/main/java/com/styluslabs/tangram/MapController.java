@@ -1057,10 +1057,11 @@ public class MapController {
     
     /**
      * Set DPI for touch gesture calculations
+     * This is automatically set from the system DPI, but can be overridden if needed.
      * @param dpi The screen DPI to use for gesture detection thresholds
      */
-    public void setTouchGestureDpi(float dpi) {
-        nativeMap.setTouchGestureDpi(dpi);
+    public void setDpi(float dpi) {
+        nativeMap.setDpi(dpi);
     }
 
     void setMapRegionState(MapRegionChangeState state) {
