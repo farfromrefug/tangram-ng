@@ -1,5 +1,5 @@
 #include "util/touchHandler.h"
-#include "tangram/map.h"
+#include "map.h"
 #include "util/touchListener.h"
 #include "glm/gtx/rotate_vector.hpp"
 #include <cmath>
@@ -22,9 +22,6 @@
 
 // Minimum zoom at which momentum should stop (zoom levels per second)
 #define THRESHOLD_STOP_ZOOM 0.3f
-
-// No coordinate constant
-#define NATIVE_NO_COORDINATE -1.0f
 
 // Maximum pitch angle for pan limiting (degrees)
 #define MAX_PITCH_FOR_PAN_LIMITING 75.0f
@@ -251,7 +248,6 @@ void TouchHandler::startDualPointer(const ScreenPos& screenPos1, const ScreenPos
 }
 
 void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos& screenPos2, View& viewState) {
-    // Follow Carto Mobile SDK's implementation for determining gesture type
     // If the pointers' y coordinates differ too much it's the general case or rotation
     float dpi = DEFAULT_DPI; // Use default DPI (could be made configurable)
     float deltaY = std::abs(screenPos1.y - screenPos2.y) / dpi;
