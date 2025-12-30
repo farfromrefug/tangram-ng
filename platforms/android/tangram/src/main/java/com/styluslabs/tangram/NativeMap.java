@@ -78,6 +78,8 @@ class NativeMap {
     native synchronized void useCachedGlState(boolean use);
     native synchronized void setDefaultBackgroundColor(float r, float g, float b);
 
+    native synchronized void setDpi(float dpi);
+
     native synchronized long addClientDataSource(String name, boolean generateCentroid);
     native synchronized void removeClientDataSource(long sourcePtr);
     native synchronized void addClientDataFeature(long sourcePtr, double[] coordinates, int[] rings, String[] properties);

@@ -303,6 +303,11 @@ void NATIVE_METHOD(handleTouchEvent)(JNIEnv* env, jobject obj, jint action,
     map->handleTouchEvent(action, x1, y1, x2, y2);
 }
 
+void NATIVE_METHOD(setDpi)(JNIEnv* env, jobject obj, jfloat dpi) {
+    auto* map = androidMapFromJava(env, obj);
+    map->setTouchGestureDpi(dpi);
+}
+
 void NATIVE_METHOD(onUrlComplete)(JNIEnv* env, jobject obj, jlong requestHandle,
                                   jbyteArray fetchedBytes, jstring errorString) {
     auto* map = androidMapFromJava(env, obj);

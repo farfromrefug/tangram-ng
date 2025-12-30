@@ -459,6 +459,11 @@ public:
     // Listener can return true to prevent all default interaction behavior
     void setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener);
     
+    // Set DPI for touch gesture calculations (affects gesture detection thresholds)
+    // Should be set based on platform's screen DPI for best results
+    void setTouchGestureDpi(float dpi);
+    float getTouchGestureDpi() const;
+    
     // Enable or disable specific gestures for the new touch handling system
     void setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate);
     void setZoomEnabled(bool enabled);

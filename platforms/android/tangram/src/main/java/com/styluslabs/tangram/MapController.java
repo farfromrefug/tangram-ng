@@ -1054,6 +1054,15 @@ public class MapController {
         mapInteractionListener = listener;
         // TODO: Register listener with native touch handler via JNI
     }
+    
+    /**
+     * Set DPI for touch gesture calculations
+     * This is automatically set from the system DPI, but can be overridden if needed.
+     * @param dpi The screen DPI to use for gesture detection thresholds
+     */
+    public void setDpi(float dpi) {
+        nativeMap.setDpi(dpi);
+    }
 
     void setMapRegionState(MapRegionChangeState state) {
 
