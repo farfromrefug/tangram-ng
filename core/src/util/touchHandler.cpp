@@ -323,18 +323,18 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
         }
     }
 
-//    // Detect rotation/scaling gesture if general panning mode is switched off
-//    if (m_gestureMode == GestureMode::DUAL_POINTER_FREE && _options->getPanningMode() != PanningMode::PANNING_MODE_FREE) {
-//        float factor = calculateRotatingScalingFactor(screenPos1, screenPos2);
-//        if (factor > ROTATION_FACTOR_THRESHOLD) {
-//            m_gestureMode = GestureMode::DUAL_POINTER_ROTATE;
-//        } else if (factor < -SCALING_FACTOR_THRESHOLD) {
-//            m_gestureMode = GestureMode::DUAL_POINTER_SCALE;
-//        } else {
-//            m_gestureMode = GestureMode::DUAL_POINTER_GUESS;
-//            return;
-//        }
-//    }
+    // Detect rotation/scaling gesture if general panning mode is switched off
+    if (m_gestureMode == GestureMode::DUAL_POINTER_FREE && m_panningMode != PanningMode::FREE) {
+        float factor = calculateRotatingScalingFactor(screenPos1, screenPos2);
+        if (factor > ROTATION_FACTOR_THRESHOLD) {
+            m_gestureMode = GestureMode::DUAL_POINTER_ROTATE;
+        } else if (factor < -SCALING_FACTOR_THRESHOLD) {
+            m_gestureMode = GestureMode::DUAL_POINTER_SCALE;
+        } else {
+            m_gestureMode = GestureMode::DUAL_POINTER_GUESS;
+            return;
+        }
+    }
 
     m_prevScreenPos1 = screenPos1;
     m_prevScreenPos2 = screenPos2;
