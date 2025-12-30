@@ -37,6 +37,12 @@ enum class GestureMode {
 // Forward declaration
 class Map;
 
+// Panning mode for dual pointer gestures (following Carto Mobile SDK)
+enum class PanningMode {
+    FREE,    // Allows simultaneous rotation and scaling
+    STICKY,  // Separates rotate and scale gestures based on intent
+};
+
 class TouchHandler {
 public:
     explicit TouchHandler(View& _view, Map* _map = nullptr);
@@ -79,6 +85,10 @@ public:
     // Get/set DPI for gesture calculations
     void setDpi(float dpi) { m_dpi = dpi; }
     float getDpi() const { return m_dpi; }
+    
+    // Get/set panning mode
+    void setPanningMode(PanningMode mode) { m_panningMode = mode; }
+    PanningMode getPanningMode() const { return m_panningMode; }
 
 private:
     // Gesture detection and handling methods
@@ -108,6 +118,9 @@ private:
     
     // DPI for gesture calculations (default 160)
     float m_dpi;
+    
+    // Panning mode for dual pointer gestures
+    PanningMode m_panningMode;
     
     // Map event listeners
     std::shared_ptr<MapClickListener> m_mapClickListener;
@@ -152,6 +165,7 @@ private:
     
     // Constants for gesture detection
     static constexpr float ROTATION_SCALING_FACTOR_THRESHOLD_STICKY = 0.3f;
+    static constexpr float ROTATION_SCALING_FACTOR_THRESHOLD_FREE = 0.05f;
     static constexpr std::chrono::milliseconds DUAL_STOP_HOLD_DURATION{500};
     static constexpr std::chrono::milliseconds DUAL_KINETIC_HOLD_DURATION{200};
     static constexpr std::chrono::milliseconds DOUBLE_TAP_TIMEOUT{300};
