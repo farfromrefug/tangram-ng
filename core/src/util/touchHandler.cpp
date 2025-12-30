@@ -253,7 +253,7 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
     // Check which gestures are enabled
     int enabledGestureCount = 0;
     GestureMode targetMode = GestureMode::DUAL_POINTER_FREE;
-    
+
     if (m_tiltEnabled) {
         enabledGestureCount++;
         targetMode = GestureMode::DUAL_POINTER_TILT;
@@ -262,7 +262,7 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
         enabledGestureCount++;
         targetMode = GestureMode::DUAL_POINTER_FREE;
     }
-    
+
     // If only one type of gesture is enabled, skip guessing and go directly to it
     if (enabledGestureCount == 1) {
         m_gestureMode = targetMode;
@@ -270,18 +270,18 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
         m_prevScreenPos2 = screenPos2;
         return;
     }
-    
+
     // If no dual-pointer gestures are enabled, bail out
     if (enabledGestureCount == 0) {
         m_gestureMode = GestureMode::SINGLE_POINTER_CLICK_GUESS;
         return;
     }
-    
+
     // Multiple gestures enabled - use heuristics to guess
     // If the pointers' y coordinates differ too much it's the general case or rotation
     float dpi = m_dpi;
     float deltaY = std::abs(screenPos1.y - screenPos2.y) / dpi;
-    
+
     if (deltaY > GUESS_MAX_DELTA_Y_INCHES) {
         m_gestureMode = GestureMode::DUAL_POINTER_FREE;
     } else {
@@ -293,7 +293,7 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
         m_swipe1 += tempSwipe1 * (1.0f / dpi);
         glm::vec2 tempSwipe2(screenPos2.x - m_prevScreenPos2.x, screenPos2.y - m_prevScreenPos2.y);
         m_swipe2 += tempSwipe2 * (1.0f / dpi);
-        
+
         float swipe1Length = glm::length(m_swipe1);
         float swipe2Length = glm::length(m_swipe2);
 
@@ -307,7 +307,7 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
                 m_gestureMode = GestureMode::DUAL_POINTER_FREE;
             }
         } else if ((swipe1Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES ||
-                    swipe2Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES) 
+                    swipe2Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES)
                    && m_swipe1.y * m_swipe2.y > 0) {
             // Same direction in Y = tilt mode
             if (m_tiltEnabled) {
@@ -315,9 +315,38 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
             }
         }
     }
-    
+
+//    // Detect rotation/scaling gesture if general panning mode is switched off
+//    if (m_gestureMode == GestureMode::DUAL_POINTER_FREE && _options->getPanningMode() != PanningMode::PANNING_MODE_FREE) {
+//        float factor = calculateRotatingScalingFactor(screenPos1, screenPos2);
+//        if (factor > ROTATION_FACTOR_THRESHOLD) {
+//            m_gestureMode = GestureMode::DUAL_POINTER_ROTATE;
+//        } else if (factor < -SCALING_FACTOR_THRESHOLD) {
+//            m_gestureMode = GestureMode::DUAL_POINTER_SCALE;
+//        } else {
+//            m_gestureMode = GestureMode::DUAL_POINTER_GUESS;
+//            return;
+//        }
+//    }
+
     m_prevScreenPos1 = screenPos1;
     m_prevScreenPos2 = screenPos2;
+    // The general case requires _previous coordinates for both pointers,
+    // calculate them
+//    switch (m_gestureMode) {
+//        case GestureMode::DUAL_POINTER_ROTATE:
+//        case GestureMode::DUAL_POINTER_SCALE:
+//        case GestureMode::DUAL_POINTER_FREE:
+//            m_prevScreenPos1 = screenPos1;
+//            m_prevScreenPos2 = screenPos2;
+//            break;
+//        case GestureMode::DUAL_POINTER_GUESS:
+//        case GestureMode::DUAL_POINTER_TILT:
+//        default:
+//            m_prevScreenPos1 = screenPos1;
+//            m_prevScreenPos2 = screenPos2;
+//            break;
+//    }
 }
 
 void TouchHandler::dualPointerPan(const ScreenPos& screenPos1, const ScreenPos& screenPos2,
@@ -436,7 +465,9 @@ float TouchHandler::calculateRotatingScalingFactor(const ScreenPos& screenPos1, 
 bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
     View& viewState = m_view;
     auto now = std::chrono::steady_clock::now();
-    
+    // Use DPI-adjusted threshold
+    float tapThreshold = TAP_MOVEMENT_THRESHOLD_INCHES * m_dpi;
+
     switch (action) {
     case TouchAction::POINTER_1_DOWN: {
         m_pointer1DownTime = now;
@@ -453,9 +484,6 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
                 std::pow(screenPos1.y - m_firstTapPos.y, 2)
         );
         
-        // Use DPI-adjusted threshold
-        float tapThreshold = TAP_MOVEMENT_THRESHOLD_INCHES * m_dpi;
-
         if (timeSinceFirstTap < DOUBLE_TAP_TIMEOUT &&
             distFromFirstTap < tapThreshold &&
             m_gestureMode == GestureMode::SINGLE_POINTER_CLICK_GUESS) {
@@ -600,9 +628,6 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
             
             switch (m_gestureMode) {
             case GestureMode::SINGLE_POINTER_CLICK_GUESS:
-                // This was a tap - check if it qualifies as a click or long press
-                // Use DPI-adjusted threshold
-                float tapThreshold = TAP_MOVEMENT_THRESHOLD_INCHES * m_dpi;
                 if (moveDist < tapThreshold) {
                     if (tapDuration >= LONG_PRESS_TIMEOUT) {
                         // Long press
@@ -629,7 +654,6 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
                 // Finger lifted after double-tap zoom or during drag zoom
                 // If it was a quick tap without much movement, do an instant zoom
                 // Use DPI-adjusted threshold
-                float tapThreshold = TAP_MOVEMENT_THRESHOLD_INCHES * m_dpi;
                 if (tapDuration < DOUBLE_TAP_TIMEOUT && moveDist < tapThreshold) {
                     handleDoubleTap(screenPos1);
                 }

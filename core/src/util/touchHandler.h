@@ -163,6 +163,8 @@ private:
     static constexpr float GUESS_MIN_SWIPE_LENGTH_SAME_INCHES = 0.1f;
     static constexpr float GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES = 0.075f;
     static constexpr float DEFAULT_DPI = 160.0f; // Fallback DPI if not available
+    static constexpr float SCALING_FACTOR_THRESHOLD = 0.5f;
+    static constexpr float ROTATION_FACTOR_THRESHOLD = 0.75f; // make rotation harder to trigger compared to scaling
 };
 
 }
