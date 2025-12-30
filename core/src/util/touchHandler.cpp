@@ -303,22 +303,19 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
         if (((swipe1Length > GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES && prevSwipe1Length > 0) ||
              (swipe2Length > GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES && prevSwipe2Length > 0))
             && m_swipe1.y * m_swipe2.y <= 0) {
-            // Opposite directions in Y = free mode or rotate/scale mode depending on PanningMode
-            if (m_rotateEnabled || m_zoomEnabled) {
-                if (m_panningMode == PanningMode::STICKY || m_panningMode == PanningMode::STICKY_FINAL) {
-                    // In STICKY modes, start with ROTATE/SCALE and let user's gesture decide
-                    m_gestureMode = GestureMode::DUAL_POINTER_ROTATE;
-                } else {
-                    // In FREE mode, allow both simultaneously
-                    m_gestureMode = GestureMode::DUAL_POINTER_FREE;
-                }
-            }
+            // Opposite directions in Y = free mode
+            m_gestureMode = GestureMode::DUAL_POINTER_FREE;
         } else if ((swipe1Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES ||
                     swipe2Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES)
                    && m_swipe1.y * m_swipe2.y > 0) {
-            // Same direction in Y = tilt mode
+            // Same direction in Y = tilt mode (but only if not in FREE panning mode)
             if (m_tiltEnabled) {
-                m_gestureMode = GestureMode::DUAL_POINTER_TILT;
+                // In FREE panning mode, prefer FREE over TILT unless gestures are clearly separate
+                if (m_panningMode == PanningMode::FREE && (m_rotateEnabled || m_zoomEnabled)) {
+                    m_gestureMode = GestureMode::DUAL_POINTER_FREE;
+                } else {
+                    m_gestureMode = GestureMode::DUAL_POINTER_TILT;
+                }
             }
         }
     }
