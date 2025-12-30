@@ -464,6 +464,12 @@ public:
     void setTouchGestureDpi(float dpi);
     float getTouchGestureDpi() const;
     
+    // Set panning mode for dual pointer gestures
+    // FREE: Allows simultaneous rotation and scaling (default)
+    // STICKY: Separates rotate and scale gestures based on user intent
+    void setTouchGesturePanningMode(int mode); // 0 = FREE, 1 = STICKY
+    int getTouchGesturePanningMode() const;
+    
     // Enable or disable specific gestures for the new touch handling system
     void setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate);
     void setZoomEnabled(bool enabled);

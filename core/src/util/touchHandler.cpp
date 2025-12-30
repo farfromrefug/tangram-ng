@@ -35,6 +35,7 @@ TouchHandler::TouchHandler(View& _view, Map* _map)
     : m_view(_view),
       m_map(_map),
       m_dpi(DEFAULT_DPI),
+      m_panningMode(PanningMode::FREE),
       m_gestureMode(GestureMode::SINGLE_POINTER_CLICK_GUESS),
       m_pointersDown(0),
       m_noDualPointerYet(true),
@@ -302,9 +303,15 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
         if (((swipe1Length > GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES && prevSwipe1Length > 0) ||
              (swipe2Length > GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES && prevSwipe2Length > 0))
             && m_swipe1.y * m_swipe2.y <= 0) {
-            // Opposite directions in Y = free mode (rotate + scale + pan)
+            // Opposite directions in Y = free mode or rotate/scale mode depending on PanningMode
             if (m_rotateEnabled || m_zoomEnabled) {
-                m_gestureMode = GestureMode::DUAL_POINTER_FREE;
+                if (m_panningMode == PanningMode::STICKY) {
+                    // In STICKY mode, start with ROTATE/SCALE and let user's gesture decide
+                    m_gestureMode = GestureMode::DUAL_POINTER_ROTATE;
+                } else {
+                    // In FREE mode, allow both simultaneously
+                    m_gestureMode = GestureMode::DUAL_POINTER_FREE;
+                }
             }
         } else if ((swipe1Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES ||
                     swipe2Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES) 
@@ -358,11 +365,11 @@ void TouchHandler::dualPointerPan(const ScreenPos& screenPos1, const ScreenPos& 
     }
     
     if (rotate && m_rotateEnabled) {
-        // Calculate rotation angle
+        // Calculate rotation angle - FIXED BUG: was using screenPos1.x twice
         float prevAngle = std::atan2(m_prevScreenPos2.y - m_prevScreenPos1.y,
                                     m_prevScreenPos2.x - m_prevScreenPos1.x);
         float currAngle = std::atan2(screenPos2.y - screenPos1.y,
-                                    screenPos1.x - screenPos1.x);
+                                    screenPos2.x - screenPos1.x);
         float rotation = currAngle - prevAngle;
         
         float elev = 0;
@@ -574,11 +581,21 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
             break;
         case GestureMode::DUAL_POINTER_ROTATE:
         case GestureMode::DUAL_POINTER_SCALE:
+            // In STICKY mode, check if we should transition based on gesture
+            if (m_panningMode == PanningMode::STICKY) {
+                float factor = calculateRotatingScalingFactor(screenPos1, screenPos2);
+                if (factor > ROTATION_SCALING_FACTOR_THRESHOLD_STICKY) {
+                    m_gestureMode = GestureMode::DUAL_POINTER_ROTATE;
+                } else if (factor < -ROTATION_SCALING_FACTOR_THRESHOLD_STICKY) {
+                    m_gestureMode = GestureMode::DUAL_POINTER_SCALE;
+                }
+            }
             dualPointerPan(screenPos1, screenPos2, 
                          m_gestureMode == GestureMode::DUAL_POINTER_ROTATE,
                          m_gestureMode == GestureMode::DUAL_POINTER_SCALE, viewState);
             break;
         case GestureMode::DUAL_POINTER_FREE:
+            // In FREE mode, always allow both rotate and scale
             dualPointerPan(screenPos1, screenPos2, true, true, viewState);
             break;
         }
