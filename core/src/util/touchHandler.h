@@ -75,6 +75,10 @@ public:
     bool isDoubleTapDragEnabled() const { return m_doubleTapDragEnabled; }
     bool isTiltEnabled() const { return m_tiltEnabled; }
     bool isRotateEnabled() const { return m_rotateEnabled; }
+    
+    // Get/set DPI for gesture calculations
+    void setDpi(float dpi) { m_dpi = dpi; }
+    float getDpi() const { return m_dpi; }
 
 private:
     // Gesture detection and handling methods
@@ -101,6 +105,9 @@ private:
 
     View& m_view;
     Map* m_map;
+    
+    // DPI for gesture calculations (default 160)
+    float m_dpi;
     
     // Map event listeners
     std::shared_ptr<MapClickListener> m_mapClickListener;

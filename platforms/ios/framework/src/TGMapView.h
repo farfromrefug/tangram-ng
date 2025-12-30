@@ -447,6 +447,12 @@ TG_EXPORT
  */
 @property (assign, nonatomic) BOOL useNewTouchHandling;
 
+/**
+ Set DPI for touch gesture calculations (affects gesture detection thresholds)
+ This is automatically set based on the screen's scale when enabling new touch handling
+ */
+- (void)setTouchGestureDpi:(float)dpi;
+
 #pragma mark Map region change state notifiers
 
 /**

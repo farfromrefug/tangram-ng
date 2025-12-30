@@ -983,6 +983,14 @@ void Map::setMapInteractionListener(std::shared_ptr<MapInteractionListener> list
     impl->touchHandler.setMapInteractionListener(listener);
 }
 
+void Map::setTouchGestureDpi(float dpi) {
+    impl->touchHandler.setDpi(dpi);
+}
+
+float Map::getTouchGestureDpi() const {
+    return impl->touchHandler.getDpi();
+}
+
 void Map::setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate) {
     impl->touchHandler.setGesturesEnabled(zoom, pan, doubleTap, doubleTapDrag, tilt, rotate);
 }

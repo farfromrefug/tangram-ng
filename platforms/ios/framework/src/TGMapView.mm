@@ -1346,6 +1346,24 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
 
 #pragma mark - New Touch Handling
 
+- (void)setUseNewTouchHandling:(BOOL)useNewTouchHandling
+{
+    _useNewTouchHandling = useNewTouchHandling;
+    
+    // Automatically set DPI when enabling new touch handling
+    if (useNewTouchHandling && self.map) {
+        float dpi = [[UIScreen mainScreen] scale] * 160.0f; // iOS uses scale factor, convert to DPI
+        self.map->setTouchGestureDpi(dpi);
+    }
+}
+
+- (void)setTouchGestureDpi:(float)dpi
+{
+    if (self.map) {
+        self.map->setTouchGestureDpi(dpi);
+    }
+}
+
 static const int NATIVE_ACTION_POINTER_1_DOWN = 0;
 static const int NATIVE_ACTION_POINTER_2_DOWN = 1;
 static const int NATIVE_ACTION_MOVE = 2;

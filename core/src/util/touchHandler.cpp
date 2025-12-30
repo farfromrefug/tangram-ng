@@ -37,6 +37,7 @@ namespace Tangram {
 TouchHandler::TouchHandler(View& _view, Map* _map)
     : m_view(_view),
       m_map(_map),
+      m_dpi(DEFAULT_DPI),
       m_gestureMode(GestureMode::SINGLE_POINTER_CLICK_GUESS),
       m_pointersDown(0),
       m_noDualPointerYet(true),
@@ -146,8 +147,9 @@ void TouchHandler::singlePointerZoom(const ScreenPos& screenPos, View& viewState
     
     // Implement single pointer zoom (double-tap and drag)
     // Zoom at the double tap position, not the current drag position
+    // Moving up (negative deltaY) should zoom OUT (negative zoom), moving down should zoom IN (positive zoom)
     float deltaY = screenPos.y - m_prevScreenPos1.y;
-    float zoomDelta = -deltaY * SINGLE_POINTER_ZOOM_SENSITIVITY;
+    float zoomDelta = deltaY * SINGLE_POINTER_ZOOM_SENSITIVITY;
     
     // Get the fixed point for zooming (at the double tap position)
     float elev;
@@ -253,7 +255,7 @@ void TouchHandler::startDualPointer(const ScreenPos& screenPos1, const ScreenPos
 void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos& screenPos2, View& viewState) {
     // Follow Carto Mobile SDK's implementation for determining gesture type
     // If the pointers' y coordinates differ too much it's the general case or rotation
-    float dpi = DEFAULT_DPI; // Use default DPI (could be made configurable)
+    float dpi = m_dpi;
     float deltaY = std::abs(screenPos1.y - screenPos2.y) / dpi;
     
     if (deltaY > GUESS_MAX_DELTA_Y_INCHES) {
