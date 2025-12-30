@@ -156,7 +156,7 @@ private:
     static constexpr std::chrono::milliseconds DUAL_KINETIC_HOLD_DURATION{200};
     static constexpr std::chrono::milliseconds DOUBLE_TAP_TIMEOUT{300};
     static constexpr std::chrono::milliseconds LONG_PRESS_TIMEOUT{500};
-    static constexpr float TAP_MOVEMENT_THRESHOLD = 10.0f; // pixels
+    static constexpr float TAP_MOVEMENT_THRESHOLD_INCHES = 0.1f; // inches instead of pixels
     
     // Constants for dual pointer guess algorithm (following Carto)
     static constexpr float GUESS_MAX_DELTA_Y_INCHES = 1.0f;
