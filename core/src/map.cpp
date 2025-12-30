@@ -117,11 +117,8 @@ Map::Map(std::unique_ptr<Platform> _platform) : platform(std::move(_platform)) {
     LOGTOInit();
     impl = std::make_unique<Impl>(*platform);
     
-    // Set animated zoom callback for touch handler
-    impl->touchHandler.setAnimatedZoomCallback([this](float x, float y, float zoomDelta, float duration) {
-        // Get the position at the tap/touch point
-        handleDoubleTapGesture(x, y, zoomDelta < 0);
-    });
+    // Set the Map reference for the touch handler
+    impl->touchHandler.setMap(this);
 }
 
 Map::~Map() {

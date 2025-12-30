@@ -34,9 +34,12 @@ enum class GestureMode {
     DUAL_POINTER_FREE,
 };
 
+// Forward declaration
+class Map;
+
 class TouchHandler {
 public:
-    explicit TouchHandler(View& _view);
+    explicit TouchHandler(View& _view, Map* _map = nullptr);
 
     // Main touch event handler - similar to Carto Mobile SDK
     // Returns true if the event was handled
@@ -49,16 +52,13 @@ public:
     void cancel();
 
     void setView(View& _view) { m_view = _view; }
+    void setMap(Map* _map) { m_map = _map; }
     
     // Add/remove map click listeners
     void setMapClickListener(std::shared_ptr<MapClickListener> listener);
     
     // Add/remove map interaction listeners
     void setMapInteractionListener(std::shared_ptr<MapInteractionListener> listener);
-    
-    // Set callback for animated zoom (Map will provide this)
-    using AnimatedZoomCallback = std::function<void(float x, float y, float zoomDelta, float duration)>;
-    void setAnimatedZoomCallback(AnimatedZoomCallback callback) { m_animatedZoomCallback = callback; }
     
     // Enable/disable gestures
     void setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate);
@@ -100,14 +100,12 @@ private:
     void setVelocity(float _zoom, glm::vec2 _pan);
 
     View& m_view;
+    Map* m_map;
     
     // Map event listeners
     std::shared_ptr<MapClickListener> m_mapClickListener;
     std::shared_ptr<MapInteractionListener> m_mapInteractionListener;
     std::mutex m_listenersMutex;
-    
-    // Animated zoom callback
-    AnimatedZoomCallback m_animatedZoomCallback;
     
     // Gesture enable/disable flags
     bool m_zoomEnabled;
@@ -129,6 +127,10 @@ private:
     ScreenPos m_firstTapPos;
     ScreenPos m_doubleTapStartPos; // Position where double tap started (for zooming)
     
+    // Swipe tracking for dual pointer guess
+    glm::vec2 m_swipe1;
+    glm::vec2 m_swipe2;
+    
     // Timing for gesture detection
     std::chrono::steady_clock::time_point m_dualPointerReleaseTime;
     std::chrono::steady_clock::time_point m_firstTapTime;
@@ -148,6 +150,12 @@ private:
     static constexpr std::chrono::milliseconds DOUBLE_TAP_TIMEOUT{300};
     static constexpr std::chrono::milliseconds LONG_PRESS_TIMEOUT{500};
     static constexpr float TAP_MOVEMENT_THRESHOLD = 10.0f; // pixels
+    
+    // Constants for dual pointer guess algorithm (following Carto)
+    static constexpr float GUESS_MAX_DELTA_Y_INCHES = 1.0f;
+    static constexpr float GUESS_MIN_SWIPE_LENGTH_SAME_INCHES = 0.1f;
+    static constexpr float GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES = 0.075f;
+    static constexpr float DEFAULT_DPI = 160.0f; // Fallback DPI if not available
 };
 
 }

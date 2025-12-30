@@ -1,4 +1,5 @@
 #include "util/touchHandler.h"
+#include "tangram/map.h"
 #include "util/touchListener.h"
 #include "glm/gtx/rotate_vector.hpp"
 #include <cmath>
@@ -33,8 +34,9 @@
 
 namespace Tangram {
 
-TouchHandler::TouchHandler(View& _view)
+TouchHandler::TouchHandler(View& _view, Map* _map)
     : m_view(_view),
+      m_map(_map),
       m_gestureMode(GestureMode::SINGLE_POINTER_CLICK_GUESS),
       m_pointersDown(0),
       m_noDualPointerYet(true),
@@ -46,6 +48,8 @@ TouchHandler::TouchHandler(View& _view)
       m_tiltEnabled(true),
       m_rotateEnabled(true),
       m_singlePointerZoomStartZoom(0.f),
+      m_swipe1(0.f, 0.f),
+      m_swipe2(0.f, 0.f),
       m_velocityPan(0.f, 0.f),
       m_velocityZoom(0.f),
       m_dualPointerReleaseTime(std::chrono::steady_clock::now()),
@@ -188,8 +192,8 @@ void TouchHandler::handleDoubleTap(const ScreenPos& screenPos) {
     }
     
     // Default behavior: animated zoom in by +1
-    if (m_doubleTapEnabled && m_animatedZoomCallback) {
-        m_animatedZoomCallback(screenPos.x, screenPos.y, 1.0f, 0.3f); // +1 zoom over 0.3 seconds
+    if (m_doubleTapEnabled && m_map) {
+        m_map->handleDoubleTapGesture(screenPos.x, screenPos.y, false);
     }
 }
 
@@ -219,8 +223,8 @@ void TouchHandler::handleDualTap(const ScreenPos& screenPos1, const ScreenPos& s
     }
     
     // Default behavior: animated zoom out by -1
-    if (m_doubleTapEnabled && m_animatedZoomCallback) {
-        m_animatedZoomCallback(x, y, -1.0f, 0.3f); // -1 zoom over 0.3 seconds
+    if (m_doubleTapEnabled && m_map) {
+        m_map->handleDoubleTapGesture(x, y, true);
     }
 }
 
@@ -241,12 +245,47 @@ void TouchHandler::doubleTapZoom(const ScreenPos& screenPos, View& viewState) {
 void TouchHandler::startDualPointer(const ScreenPos& screenPos1, const ScreenPos& screenPos2) {
     m_prevScreenPos1 = screenPos1;
     m_prevScreenPos2 = screenPos2;
+    m_swipe1 = glm::vec2(0.f, 0.f);
+    m_swipe2 = glm::vec2(0.f, 0.f);
     m_gestureMode = GestureMode::DUAL_POINTER_GUESS;
 }
 
 void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos& screenPos2, View& viewState) {
-    // Simple implementation: just switch to dual pointer free mode
-    m_gestureMode = GestureMode::DUAL_POINTER_FREE;
+    // Follow Carto Mobile SDK's implementation for determining gesture type
+    // If the pointers' y coordinates differ too much it's the general case or rotation
+    float dpi = DEFAULT_DPI; // Use default DPI (could be made configurable)
+    float deltaY = std::abs(screenPos1.y - screenPos2.y) / dpi;
+    
+    if (deltaY > GUESS_MAX_DELTA_Y_INCHES) {
+        m_gestureMode = GestureMode::DUAL_POINTER_FREE;
+    } else {
+        float prevSwipe1Length = glm::length(m_swipe1);
+        float prevSwipe2Length = glm::length(m_swipe2);
+
+        // Calculate swipe vectors
+        glm::vec2 tempSwipe1(screenPos1.x - m_prevScreenPos1.x, screenPos1.y - m_prevScreenPos1.y);
+        m_swipe1 += tempSwipe1 * (1.0f / dpi);
+        glm::vec2 tempSwipe2(screenPos2.x - m_prevScreenPos2.x, screenPos2.y - m_prevScreenPos2.y);
+        m_swipe2 += tempSwipe2 * (1.0f / dpi);
+        
+        float swipe1Length = glm::length(m_swipe1);
+        float swipe2Length = glm::length(m_swipe2);
+
+        // Check if swipes have opposite directions or same directions
+        // swipe.y corresponds to swipe(1) in Carto's code (y-component)
+        if (((swipe1Length > GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES && prevSwipe1Length > 0) ||
+             (swipe2Length > GUESS_MIN_SWIPE_LENGTH_OPPOSITE_INCHES && prevSwipe2Length > 0))
+            && m_swipe1.y * m_swipe2.y <= 0) {
+            // Opposite directions in Y = free mode (rotate + scale + pan)
+            m_gestureMode = GestureMode::DUAL_POINTER_FREE;
+        } else if ((swipe1Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES ||
+                    swipe2Length > GUESS_MIN_SWIPE_LENGTH_SAME_INCHES) 
+                   && m_swipe1.y * m_swipe2.y > 0) {
+            // Same direction in Y = tilt mode
+            m_gestureMode = GestureMode::DUAL_POINTER_TILT;
+        }
+    }
+    
     m_prevScreenPos1 = screenPos1;
     m_prevScreenPos2 = screenPos2;
 }
