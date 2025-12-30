@@ -83,9 +83,10 @@ public class TouchInput implements OnTouchListener {
          * The allowable duration between taps is determined by {@link ViewConfiguration}
          * @param x The x screen coordinate of the tapped point
          * @param y The y screen coordinate of the tapped point
+         * @param nbTouches number of touches (to trigger zoom in or zoom out)
          * @return True if the event is consumed, false if the event should continue to propagate
          */
-        boolean onDoubleTap(float x, float y);
+        boolean onDoubleTap(float x, float y, int nbTouches);
     }
 
     /**
@@ -471,7 +472,7 @@ public class TouchInput implements OnTouchListener {
                 return false;
             }
             if (isDetectionAllowed(Gestures.DOUBLE_TAP) && doubleTapResponder != null) {
-                return doubleTapResponder.onDoubleTap(e.getX(), e.getY());
+                return doubleTapResponder.onDoubleTap(e.getX(), e.getY(), 1);
             }
             return false;
         }

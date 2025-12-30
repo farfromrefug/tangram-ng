@@ -17,8 +17,10 @@ import com.styluslabs.tangram.LabelPickListener;
 import com.styluslabs.tangram.LabelPickResult;
 import com.styluslabs.tangram.LngLat;
 import com.styluslabs.tangram.MapChangeListener;
+import com.styluslabs.tangram.MapClickListener;
 import com.styluslabs.tangram.MapController;
 import com.styluslabs.tangram.MapData;
+import com.styluslabs.tangram.MapInteractionListener;
 import com.styluslabs.tangram.MapView;
 import com.styluslabs.tangram.Marker;
 import com.styluslabs.tangram.MarkerPickListener;
@@ -116,6 +118,23 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
         map = mapController;
         String sceneUrl = sceneSelector.getCurrentString();
         map.setSceneLoadListener(this);
+        view.setNewTouchHandlingEnabled(true);
+
+        mapController.setMapInteractionListener(new MapInteractionListener() {
+            public boolean onMapInteraction(boolean isPanning, boolean isZooming,
+                                            boolean isRotating, boolean isTilting) {
+                Log.d(TAG, "onMapInteraction isPanning:" + isPanning + " isZooming:" + isZooming + " isRotating:" + isRotating + " isTilting:" + isTilting);
+                // Handle interaction start
+                return false; // false = allow default behavior
+            }
+        });
+        mapController.setMapClickListener(new MapClickListener() {
+            @Override
+            public boolean onMapClick(ClickType clickType, float x, float y) {
+                Log.d(TAG, "onMapClick: " + clickType + " x:" + x + " y:" + y);
+                return false;
+            }
+        });
 
         LngLat startPoint = new LngLat(-74.00976419448854, 40.70532700869127);
         map.updateCameraPosition(CameraUpdateFactory.newLngLatZoom(startPoint, 16));
