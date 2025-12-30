@@ -319,6 +319,30 @@ public class MapView extends FrameLayout {
             mapController.setDpi(dpi);
         }
     }
+    
+    /**
+     * Set panning mode for dual-finger gestures when using new touch handling
+     * @param mode The panning mode: 0 = FREE, 1 = STICKY, 2 = STICKY_FINAL
+     * FREE (0): Allows simultaneous rotation and scaling (default)
+     * STICKY (1): Separates rotate and scale gestures, allows switching during touch
+     * STICKY_FINAL (2): Locks to first detected gesture until fingers lift
+     */
+    public void setPanningMode(int mode) {
+        if (mapController != null) {
+            mapController.setPanningMode(mode);
+        }
+    }
+    
+    /**
+     * Get the current panning mode for dual-finger gestures
+     * @return The panning mode: 0 = FREE, 1 = STICKY, 2 = STICKY_FINAL
+     */
+    public int getPanningMode() {
+        if (mapController != null) {
+            return mapController.getPanningMode();
+        }
+        return 0; // DEFAULT: FREE
+    }
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {

@@ -991,13 +991,18 @@ float Map::getTouchGestureDpi() const {
     return impl->touchHandler.getDpi();
 }
 
-void Map::setTouchGesturePanningMode(int mode) {
-    PanningMode panningMode = (mode == 1) ? PanningMode::STICKY : PanningMode::FREE;
+void Map::setPanningMode(int mode) {
+    PanningMode panningMode = PanningMode::FREE;
+    if (mode == 1) {
+        panningMode = PanningMode::STICKY;
+    } else if (mode == 2) {
+        panningMode = PanningMode::STICKY_FINAL;
+    }
     impl->touchHandler.setPanningMode(panningMode);
 }
 
-int Map::getTouchGesturePanningMode() const {
-    return (impl->touchHandler.getPanningMode() == PanningMode::STICKY) ? 1 : 0;
+int Map::getPanningMode() const {
+    return static_cast<int>(impl->touchHandler.getPanningMode());
 }
 
 void Map::setGesturesEnabled(bool zoom, bool pan, bool doubleTap, bool doubleTapDrag, bool tilt, bool rotate) {

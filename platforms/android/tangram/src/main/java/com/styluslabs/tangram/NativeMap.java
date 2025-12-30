@@ -79,6 +79,8 @@ class NativeMap {
     native synchronized void setDefaultBackgroundColor(float r, float g, float b);
 
     native synchronized void setDpi(float dpi);
+    native synchronized void setPanningMode(int mode);
+    native synchronized int getPanningMode();
 
     native synchronized long addClientDataSource(String name, boolean generateCentroid);
     native synchronized void removeClientDataSource(long sourcePtr);

@@ -305,8 +305,8 @@ void TouchHandler::dualPointerGuess(const ScreenPos& screenPos1, const ScreenPos
             && m_swipe1.y * m_swipe2.y <= 0) {
             // Opposite directions in Y = free mode or rotate/scale mode depending on PanningMode
             if (m_rotateEnabled || m_zoomEnabled) {
-                if (m_panningMode == PanningMode::STICKY) {
-                    // In STICKY mode, start with ROTATE/SCALE and let user's gesture decide
+                if (m_panningMode == PanningMode::STICKY || m_panningMode == PanningMode::STICKY_FINAL) {
+                    // In STICKY modes, start with ROTATE/SCALE and let user's gesture decide
                     m_gestureMode = GestureMode::DUAL_POINTER_ROTATE;
                 } else {
                     // In FREE mode, allow both simultaneously
@@ -582,6 +582,7 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
         case GestureMode::DUAL_POINTER_ROTATE:
         case GestureMode::DUAL_POINTER_SCALE:
             // In STICKY mode, check if we should transition based on gesture
+            // In STICKY_FINAL mode, stay locked to the current gesture
             if (m_panningMode == PanningMode::STICKY) {
                 float factor = calculateRotatingScalingFactor(screenPos1, screenPos2);
                 if (factor > ROTATION_SCALING_FACTOR_THRESHOLD_STICKY) {
@@ -590,6 +591,7 @@ bool TouchHandler::onTouchEvent(TouchAction action, const ScreenPos& screenPos1,
                     m_gestureMode = GestureMode::DUAL_POINTER_SCALE;
                 }
             }
+            // STICKY_FINAL mode: no transitions, stay locked to current gesture
             dualPointerPan(screenPos1, screenPos2, 
                          m_gestureMode == GestureMode::DUAL_POINTER_ROTATE,
                          m_gestureMode == GestureMode::DUAL_POINTER_SCALE, viewState);
