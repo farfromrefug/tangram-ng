@@ -235,6 +235,8 @@ public class MapController {
         // listener/callbacks
         touchInput = null;
         mapChangeListener = null;
+        mapClickListener = null;
+        mapInteractionListener = null;
         featurePickListener = null;
         sceneLoadListener = null;
         labelPickListener = null;
@@ -1035,6 +1037,51 @@ public class MapController {
         mapChangeListener = listener;
     }
 
+    /**
+     * Set a listener for map click events (single tap)
+     * @param listener The {@link MapClickListener} to call when the user taps the map
+     */
+    public void setMapClickListener(@Nullable final MapClickListener listener) {
+        mapClickListener = listener;
+        // TODO: Register listener with native touch handler via JNI
+    }
+
+    /**
+     * Set a listener for map interaction events (panning, zooming, rotating, tilting)
+     * @param listener The {@link MapInteractionListener} to call when the user interacts with the map
+     */
+    public void setMapInteractionListener(@Nullable final MapInteractionListener listener) {
+        mapInteractionListener = listener;
+        // TODO: Register listener with native touch handler via JNI
+    }
+    
+    /**
+     * Set DPI for touch gesture calculations
+     * This is automatically set from the system DPI, but can be overridden if needed.
+     * @param dpi The screen DPI to use for gesture detection thresholds
+     */
+    public void setDpi(float dpi) {
+        nativeMap.setDpi(dpi);
+    }
+    
+    /**
+     * Set the panning mode for dual-finger gestures when using new touch handling.
+     * @param mode The panning mode: 0 = FREE, 1 = STICKY, 2 = STICKY_FINAL
+     * FREE (0): Allows simultaneous rotation and scaling (default)
+     * STICKY (1): Separates rotate and scale gestures, allows switching during touch
+     * STICKY_FINAL (2): Locks to first detected gesture until fingers lift
+     */
+    public void setPanningMode(int mode) {
+        nativeMap.setPanningMode(mode);
+    }
+    
+    /**
+     * Get the current panning mode for dual-finger gestures.
+     * @return The panning mode: 0 = FREE, 1 = STICKY, 2 = STICKY_FINAL
+     */
+    public int getPanningMode() {
+        return nativeMap.getPanningMode();
+    }
 
     void setMapRegionState(MapRegionChangeState state) {
 
@@ -1350,6 +1397,8 @@ public class MapController {
     private SceneLoadListener sceneLoadListener;
     private LabelPickListener labelPickListener;
     private MarkerPickListener markerPickListener;
+    private MapClickListener mapClickListener;
+    private MapInteractionListener mapInteractionListener;
     private final Map<String, MapData> clientTileSources;
     private final LongSparseArray<Marker> markers = new LongSparseArray<>();
     private Handler uiThreadHandler;
