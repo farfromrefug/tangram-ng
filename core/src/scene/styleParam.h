@@ -8,6 +8,7 @@
 #include <initializer_list>
 #include <string>
 #include <vector>
+#include <cmath>
 
 // Forward declaration
 namespace YAML {

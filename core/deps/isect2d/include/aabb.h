@@ -1,9 +1,7 @@
 #pragma once
 
-#include <cmath>
-#include <climits>
 #include <algorithm>
-#include <climits>
+#include <limits>
 
 namespace isect2d {
 
@@ -13,9 +11,12 @@ enum Dimension {
 
 template<typename V>
 struct AABB {
-    AABB() : AABB(INT_MAX, INT_MAX, -INT_MAX, -INT_MAX) {}
+    using T = typename V::value_type;
 
-    AABB(float _minx, float _miny, float _maxx, float _maxy)
+    AABB() : AABB(std::numeric_limits<T>::max(), std::numeric_limits<T>::max(),
+                  std::numeric_limits<T>::lowest(), std::numeric_limits<T>::lowest()) {}
+
+    AABB(T _minx, T _miny, T _maxx, T _maxy)
         : min(_minx, _miny), max(_maxx, _maxy) {
     }
 
@@ -35,7 +36,7 @@ struct AABB {
     }
 
     V getCentroid() const {
-        return (min + max) * 0.5f;
+        return (min + max)/T(2);
     }
 
     Dimension maxExtent() {
@@ -46,7 +47,7 @@ struct AABB {
         return Y;
     }
 
-    void include(float _x, float _y) {
+    void include(T _x, T _y) {
         min.x = std::min(min.x, _x);
         min.y = std::min(min.y, _y);
         max.x = std::max(max.x, _x);

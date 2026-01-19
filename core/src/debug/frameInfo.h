@@ -8,8 +8,8 @@ class RenderState;
 class Map;
 class View;
 
-struct FrameInfo {
-
+class FrameInfo {
+public:
     static void beginUpdate();
     static void beginFrame();
 
