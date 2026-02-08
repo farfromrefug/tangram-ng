@@ -4,7 +4,7 @@
 [submodule "external/glfw"]
 	path = platforms/common/glfw
 	url = https://github.com/glfw/glfw
-  shallow = true
+	shallow = true
 [submodule "external/benchmark"]
 	path = bench/benchmark
 	url = https://github.com/google/benchmark
@@ -20,7 +20,11 @@
 [submodule "core/deps/glm"]
 	path = core/deps/glm
 	url = https://github.com/g-truc/glm
-  shallow = true
+	shallow = true
 [submodule "core/deps/lerc"]
 	path = core/deps/lerc
 	url = https://github.com/Esri/lerc
+[submodule "core/deps/wuffs"]
+	path = core/deps/wuffs
+	url = https://github.com/google/wuffs
+	shallow = true
