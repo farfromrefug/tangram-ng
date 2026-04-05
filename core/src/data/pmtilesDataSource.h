@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <mutex>
+#include <condition_variable>
 
 namespace pmtiles {
     struct headerv3;
@@ -62,15 +63,15 @@ public:
 
 private:
     /**
-     * Read a range of bytes from the PMTiles file.
+     * Read a range of bytes from the PMTiles file synchronously.
      * For local files, uses standard file I/O.
-     * For HTTP sources, uses HTTP range requests.
+     * For HTTP sources, uses HTTP range requests (blocks until complete).
      * @param offset Byte offset to start reading from
      * @param length Number of bytes to read
      * @param data Output buffer for the read data
      * @return true on success, false on failure
      */
-    bool readRange(uint64_t offset, uint32_t length, std::vector<char>& data);
+    bool readRangeSync(uint64_t offset, uint32_t length, std::vector<char>& data);
     
     /**
      * Get tile data for a specific tile ID.

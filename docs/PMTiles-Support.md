@@ -16,7 +16,7 @@ sources:
     url: file:///path/to/tiles.pmtiles
 ```
 
-HTTP source (coming soon):
+HTTP source (fully supported):
 ```yaml
 sources:
   remote-tiles:
@@ -26,11 +26,12 @@ sources:
 
 ## Features
 
-- Local file support
-- Gzip decompression
-- Thread-safe async I/O
-- Root directory caching
-- Integrates with existing source chain
+- Local file support ✓
+- HTTP support with range requests ✓
+- Gzip decompression ✓
+- Thread-safe async I/O ✓
+- Root directory caching ✓
+- Integrates with existing source chain ✓
 
 ## Build
 

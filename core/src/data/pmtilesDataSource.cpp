@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <condition_variable>
 #include <cstring>
 #include <fstream>
 
@@ -21,6 +22,9 @@ static constexpr int MAX_DIRECTORY_DEPTH = 3;
 
 // Heuristic multiplier for initial decompression buffer size
 static constexpr int DECOMPRESSION_SIZE_MULTIPLIER = 4;
+
+// Timeout for HTTP range requests (in seconds)
+static constexpr int HTTP_REQUEST_TIMEOUT_SEC = 30;
 
 PMTilesDataSource::PMTilesDataSource(Platform& _platform, const std::string& _path)
     : m_platform(_platform),
@@ -48,16 +52,62 @@ void PMTilesDataSource::clear() {
     m_rootDirCached = false;
 }
 
-bool PMTilesDataSource::readRange(uint64_t offset, uint32_t length, std::vector<char>& data) {
-    data.resize(length);
+bool PMTilesDataSource::readRangeSync(uint64_t offset, uint32_t length, std::vector<char>& data) {
+    data.clear();
+    data.reserve(length);
     
     if (m_isHttp) {
-        // For HTTP sources, we need to use HTTP range requests
-        // This allows efficient access to cloud-stored PMTiles without downloading the entire file
-        // TODO: Implement proper async HTTP range request handling
-        // The platform's startUrlRequest could be extended to support range headers
-        LOGE("PMTiles: HTTP range requests not yet fully implemented - use local files for now");
-        return false;
+        // For HTTP sources, use HTTP range requests
+        // Create Range header: "bytes=start-end"
+        HttpOptions options;
+        std::string rangeHeader = "bytes=" + std::to_string(offset) + "-" + 
+                                  std::to_string(offset + length - 1);
+        options.addHeader("Range", rangeHeader);
+        
+        // Use condition variable to wait for async response
+        std::mutex cvMutex;
+        std::condition_variable cv;
+        bool completed = false;
+        bool success = false;
+        
+        auto callback = [&](UrlResponse&& response) {
+            std::lock_guard<std::mutex> lock(cvMutex);
+            
+            if (response.error) {
+                LOGE("PMTiles: HTTP range request failed: %s", response.error);
+            } else if (!response.content.empty()) {
+                data = std::move(response.content);
+                success = true;
+            }
+            
+            completed = true;
+            cv.notify_one();
+        };
+        
+        // Start the HTTP range request
+        m_platform.startUrlRequest(Url(m_path), options, std::move(callback));
+        
+        // Wait for the request to complete (with timeout)
+        std::unique_lock<std::mutex> lock(cvMutex);
+        if (!cv.wait_for(lock, std::chrono::seconds(HTTP_REQUEST_TIMEOUT_SEC), 
+                        [&completed] { return completed; })) {
+            LOGE("PMTiles: HTTP range request timed out after %d seconds", HTTP_REQUEST_TIMEOUT_SEC);
+            return false;
+        }
+        
+        if (!success) {
+            LOGE("PMTiles: Failed to read range [%" PRIu64 ", %" PRIu64 ") from HTTP: %s",
+                 offset, offset + length, m_path.c_str());
+            return false;
+        }
+        
+        // Verify we got the expected amount of data
+        if (data.size() != length) {
+            LOGW("PMTiles: Expected %u bytes, got %zu bytes from HTTP range request",
+                 length, data.size());
+        }
+        
+        return true;
         
     } else {
         // For local files, use standard file I/O with seeking
@@ -73,6 +123,7 @@ bool PMTilesDataSource::readRange(uint64_t offset, uint32_t length, std::vector<
             return false;
         }
         
+        data.resize(length);
         file.read(data.data(), length);
         if (!file.good() && !file.eof()) {
             LOGE("PMTiles: Failed to read %u bytes at offset %" PRIu64 " from file: %s", 
@@ -90,7 +141,7 @@ bool PMTilesDataSource::loadHeader() {
     }
     
     std::vector<char> headerData;
-    if (!readRange(0, 127, headerData)) {
+    if (!readRangeSync(0, 127, headerData)) {
         LOGE("PMTiles: Failed to read header from %s", m_path.c_str());
         return false;
     }
@@ -151,7 +202,7 @@ bool PMTilesDataSource::loadDirectory(uint64_t offset, uint32_t length,
                                      std::vector<char>& data) {
     // Read compressed directory
     std::vector<char> compressed;
-    if (!readRange(offset, length, compressed)) {
+    if (!readRangeSync(offset, length, compressed)) {
         return false;
     }
     
@@ -225,7 +276,7 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
             std::vector<char> compressed;
             uint64_t tileOffset = m_header->tile_data_offset + entry.offset;
             
-            if (!readRange(tileOffset, entry.length, compressed)) {
+            if (!readRangeSync(tileOffset, entry.length, compressed)) {
                 LOGE("PMTiles: Failed to read tile data at offset %" PRIu64 ", length %u",
                      tileOffset, entry.length);
                 return false;
