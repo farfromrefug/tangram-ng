@@ -1,0 +1,275 @@
+#include "data/pmtilesDataSource.h"
+
+#include "platform.h"
+#include "log.h"
+#include "util/asyncWorker.h"
+#include "util/zlibHelper.h"
+#include "tile/tileTask.h"
+#include "util/url.h"
+
+#include "pmtiles/pmtiles.hpp"
+
+#include <algorithm>
+#include <cstring>
+#include <fstream>
+
+namespace Tangram {
+
+PMTilesDataSource::PMTilesDataSource(Platform& _platform, const std::string& _path)
+    : m_platform(_platform),
+      m_path(_path),
+      m_isHttp(false),
+      m_rootDirCached(false) {
+    
+    // Determine if this is an HTTP or local file source
+    m_isHttp = (_path.substr(0, 7) == "http://" || _path.substr(0, 8) == "https://");
+    
+    // Create async worker for I/O operations
+    m_worker = std::make_unique<AsyncWorker>("PMTiles");
+    
+    LOGD("PMTilesDataSource created for: %s (HTTP: %d)", _path.c_str(), m_isHttp);
+}
+
+PMTilesDataSource::~PMTilesDataSource() {
+    clear();
+}
+
+void PMTilesDataSource::clear() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_header.reset();
+    m_rootDirCache.clear();
+    m_rootDirCached = false;
+}
+
+bool PMTilesDataSource::readRange(uint64_t offset, uint32_t length, std::vector<char>& data) {
+    data.resize(length);
+    
+    if (m_isHttp) {
+        // For HTTP sources, use platform HTTP request with Range header
+        // Note: This is a simplified implementation
+        // A production version would properly handle async HTTP with range requests
+        LOGE("PMTiles: HTTP range requests not yet fully implemented");
+        return false;
+        
+    } else {
+        // For local files, read the specified range
+        std::ifstream file(m_path, std::ios::binary);
+        if (!file.is_open()) {
+            LOGE("PMTiles: Failed to open file: %s", m_path.c_str());
+            return false;
+        }
+        
+        file.seekg(offset);
+        if (!file.good()) {
+            LOGE("PMTiles: Failed to seek to offset %llu in file: %s", offset, m_path.c_str());
+            return false;
+        }
+        
+        file.read(data.data(), length);
+        if (!file.good() && !file.eof()) {
+            LOGE("PMTiles: Failed to read %u bytes at offset %llu from file: %s", 
+                 length, offset, m_path.c_str());
+            return false;
+        }
+        
+        return true;
+    }
+}
+
+bool PMTilesDataSource::loadHeader() {
+    if (m_header) {
+        return true; // Already loaded
+    }
+    
+    std::vector<char> headerData;
+    if (!readRange(0, 127, headerData)) {
+        LOGE("PMTiles: Failed to read header from %s", m_path.c_str());
+        return false;
+    }
+    
+    try {
+        std::string headerStr(headerData.begin(), headerData.end());
+        auto header = pmtiles::deserialize_header(headerStr);
+        m_header = std::make_unique<pmtiles::headerv3>(std::move(header));
+        
+        LOGD("PMTiles header loaded: zoom %d-%d, tiles: %llu, compression: %d, tile_type: %d",
+             m_header->min_zoom, m_header->max_zoom, m_header->tile_entries_count,
+             m_header->tile_compression, m_header->tile_type);
+        
+        return true;
+    } catch (const std::exception& e) {
+        LOGE("PMTiles: Failed to parse header: %s", e.what());
+        return false;
+    }
+}
+
+bool PMTilesDataSource::decompress(const std::vector<char>& compressed, 
+                                   std::vector<char>& decompressed, 
+                                   uint8_t compression) {
+    switch (compression) {
+        case pmtiles::COMPRESSION_NONE:
+            decompressed = compressed;
+            return true;
+            
+        case pmtiles::COMPRESSION_GZIP: {
+            // Use existing zlib helper
+            decompressed.clear();
+            decompressed.reserve(compressed.size() * 4); // Initial capacity
+            
+            if (zlib_inflate(compressed.data(), compressed.size(), decompressed) == 0) {
+                return true;
+            }
+            
+            LOGE("PMTiles: Failed to decompress gzip data");
+            return false;
+        }
+        
+        case pmtiles::COMPRESSION_BROTLI:
+            LOGE("PMTiles: Brotli compression not supported");
+            return false;
+            
+        case pmtiles::COMPRESSION_ZSTD:
+            LOGE("PMTiles: Zstd compression not supported");
+            return false;
+            
+        default:
+            LOGE("PMTiles: Unknown compression type: %d", compression);
+            return false;
+    }
+}
+
+bool PMTilesDataSource::loadDirectory(uint64_t offset, uint32_t length, 
+                                     std::vector<char>& data) {
+    // Read compressed directory
+    std::vector<char> compressed;
+    if (!readRange(offset, length, compressed)) {
+        return false;
+    }
+    
+    // Decompress if needed
+    if (!m_header) {
+        LOGE("PMTiles: Header not loaded before directory");
+        return false;
+    }
+    
+    return decompress(compressed, data, m_header->internal_compression);
+}
+
+bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data) {
+    // Ensure header is loaded
+    if (!loadHeader()) {
+        return false;
+    }
+    
+    // Convert TileID to PMTiles tile ID
+    uint64_t tileId;
+    try {
+        tileId = pmtiles::zxy_to_tileid(_tileId.z, _tileId.x, _tileId.y);
+    } catch (const std::exception& e) {
+        LOGE("PMTiles: Invalid tile coordinates: z=%d, x=%d, y=%d: %s",
+             _tileId.z, _tileId.x, _tileId.y, e.what());
+        return false;
+    }
+    
+    // Load root directory if not cached
+    if (!m_rootDirCached) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_rootDirCached) {
+            if (!loadDirectory(m_header->root_dir_offset, 
+                             static_cast<uint32_t>(m_header->root_dir_bytes), 
+                             m_rootDirCache)) {
+                LOGE("PMTiles: Failed to load root directory");
+                return false;
+            }
+            m_rootDirCached = true;
+        }
+    }
+    
+    // Search for tile in directory hierarchy
+    std::string currentDir(m_rootDirCache.begin(), m_rootDirCache.end());
+    uint64_t dirOffset = m_header->root_dir_offset;
+    uint32_t dirLength = static_cast<uint32_t>(m_header->root_dir_bytes);
+    
+    // Traverse directory tree (max depth 3)
+    for (int depth = 0; depth <= 3; depth++) {
+        std::vector<pmtiles::entryv3> entries;
+        try {
+            entries = pmtiles::deserialize_directory(currentDir);
+        } catch (const std::exception& e) {
+            LOGE("PMTiles: Failed to deserialize directory at depth %d: %s", depth, e.what());
+            return false;
+        }
+        
+        auto entry = pmtiles::find_tile(entries, tileId);
+        
+        if (entry.length == 0) {
+            // Tile not found
+            return false;
+        }
+        
+        if (entry.run_length > 0) {
+            // This is a leaf entry - read the tile data
+            std::vector<char> compressed;
+            uint64_t tileOffset = m_header->tile_data_offset + entry.offset;
+            
+            if (!readRange(tileOffset, entry.length, compressed)) {
+                LOGE("PMTiles: Failed to read tile data at offset %llu, length %u",
+                     tileOffset, entry.length);
+                return false;
+            }
+            
+            // Decompress tile data
+            if (!decompress(compressed, _data, m_header->tile_compression)) {
+                return false;
+            }
+            
+            return true;
+        } else {
+            // This is a directory entry - load the next level
+            std::vector<char> nextDirData;
+            uint64_t nextDirOffset = m_header->leaf_dirs_offset + entry.offset;
+            
+            if (!loadDirectory(nextDirOffset, entry.length, nextDirData)) {
+                LOGE("PMTiles: Failed to load directory at depth %d", depth + 1);
+                return false;
+            }
+            
+            currentDir = std::string(nextDirData.begin(), nextDirData.end());
+        }
+    }
+    
+    LOGE("PMTiles: Directory tree depth exceeded");
+    return false;
+}
+
+bool PMTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) {
+    // Wrap the task in async worker
+    m_worker->enqueue([this, _task, _cb]() {
+        auto& task = static_cast<BinaryTileTask&>(*_task);
+        
+        std::vector<char> data;
+        if (getTileData(_task->tileId(), data)) {
+            // Set the raw tile data
+            task.rawTileData = std::make_shared<std::vector<char>>(std::move(data));
+            
+            // Mark task as complete and invoke callback
+            if (_cb.func) {
+                _cb.func(_task);
+            }
+            return true;
+        }
+        
+        // If tile not found in PMTiles, try next source in chain
+        if (next) {
+            return next->loadTileData(_task, _cb);
+        }
+        
+        // No tile data available
+        task.cancel();
+        return false;
+    });
+    
+    return true;
+}
+
+}
