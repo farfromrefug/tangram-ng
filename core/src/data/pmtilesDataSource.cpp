@@ -45,14 +45,15 @@ bool PMTilesDataSource::readRange(uint64_t offset, uint32_t length, std::vector<
     data.resize(length);
     
     if (m_isHttp) {
-        // For HTTP sources, use platform HTTP request with Range header
-        // Note: This is a simplified implementation
-        // A production version would properly handle async HTTP with range requests
+        // For HTTP sources, we need to use HTTP range requests
+        // This allows efficient access to cloud-stored PMTiles without downloading the entire file
+        // TODO: Implement proper async HTTP range request handling
+        // The platform's startUrlRequest could be extended to support range headers
         LOGE("PMTiles: HTTP range requests not yet fully implemented");
         return false;
         
     } else {
-        // For local files, read the specified range
+        // For local files, use standard file I/O with seeking
         std::ifstream file(m_path, std::ios::binary);
         if (!file.is_open()) {
             LOGE("PMTiles: Failed to open file: %s", m_path.c_str());
@@ -156,12 +157,13 @@ bool PMTilesDataSource::loadDirectory(uint64_t offset, uint32_t length,
 }
 
 bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _data) {
-    // Ensure header is loaded
+    // Ensure header is loaded (lazy initialization)
     if (!loadHeader()) {
         return false;
     }
     
-    // Convert TileID to PMTiles tile ID
+    // Convert tangram TileID (z, x, y) to PMTiles tile ID
+    // PMTiles uses a Hilbert curve encoding for efficient spatial indexing
     uint64_t tileId;
     try {
         tileId = pmtiles::zxy_to_tileid(_tileId.z, _tileId.x, _tileId.y);
@@ -172,6 +174,7 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
     }
     
     // Load root directory if not cached
+    // The root directory is cached to avoid repeated reads for common operations
     if (!m_rootDirCached) {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_rootDirCached) {
@@ -186,6 +189,7 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
     }
     
     // Search for tile in directory hierarchy
+    // PMTiles uses a tree structure with up to 3 levels for large tile sets
     std::string currentDir(m_rootDirCache.begin(), m_rootDirCache.end());
     uint64_t dirOffset = m_header->root_dir_offset;
     uint32_t dirLength = static_cast<uint32_t>(m_header->root_dir_bytes);
@@ -200,15 +204,16 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
             return false;
         }
         
+        // Binary search for the tile ID in the directory
         auto entry = pmtiles::find_tile(entries, tileId);
         
         if (entry.length == 0) {
-            // Tile not found
+            // Tile not found in this archive
             return false;
         }
         
         if (entry.run_length > 0) {
-            // This is a leaf entry - read the tile data
+            // This is a leaf entry - read the actual tile data
             std::vector<char> compressed;
             uint64_t tileOffset = m_header->tile_data_offset + entry.offset;
             
@@ -218,14 +223,14 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
                 return false;
             }
             
-            // Decompress tile data
+            // Decompress tile data (gzip, brotli, or uncompressed)
             if (!decompress(compressed, _data, m_header->tile_compression)) {
                 return false;
             }
             
             return true;
         } else {
-            // This is a directory entry - load the next level
+            // This is a directory entry - load the next level directory
             std::vector<char> nextDirData;
             uint64_t nextDirOffset = m_header->leaf_dirs_offset + entry.offset;
             
