@@ -38,7 +38,7 @@ This implementation adds support for PMTiles, a cloud-optimized single-file arch
 ✅ **Caching**: Root directory cached for fast lookups
 ✅ **Thread-safe**: Async operations via worker threads
 ✅ **Integration**: Works with existing source chain
-⏳ **HTTP support**: Structure in place, full implementation pending
+✅ **HTTP support**: Full HTTP range request implementation with timeout handling
 
 ## Architecture
 
@@ -88,12 +88,10 @@ sources:
 ## Limitations & Future Work
 
 ### Current Limitations
-1. HTTP range requests not yet functional (structure in place)
-2. Only gzip compression supported (brotli/zstd not yet implemented)
-3. No disk caching for remote PMTiles
+1. Only gzip compression supported (brotli/zstd not yet implemented)
+2. No disk caching for remote PMTiles
 
 ### Future Enhancements
-- [ ] Complete HTTP range request implementation
 - [ ] Brotli and Zstd decompression support
 - [ ] Memory-mapped I/O for local files
 - [ ] Optional disk caching for remote PMTiles
@@ -122,4 +120,4 @@ sources:
 
 ## Conclusion
 
-The PMTiles implementation is complete and ready for use with local files. It integrates seamlessly with tangram-ng's existing architecture and follows the repository's coding standards. HTTP support structure is in place for future implementation.
+The PMTiles implementation is complete with full support for both local files and remote HTTP sources. It integrates seamlessly with tangram-ng's existing architecture and follows the repository's coding standards. HTTP range requests are fully functional with proper timeout handling, enabling efficient access to cloud-hosted PMTiles archives.
