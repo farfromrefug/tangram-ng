@@ -110,7 +110,8 @@ private:
     std::string m_path;
     bool m_isHttp;  // true if path is HTTP/HTTPS URL
     
-    // Cached header (loaded on first access)
+    // Cached header (loaded on first access, access should be serialized via loadHeader())
+    // Note: Access to m_header should be done carefully in multi-threaded context
     std::unique_ptr<pmtiles::headerv3> m_header;
     
     // Worker thread for async I/O operations
@@ -120,6 +121,7 @@ private:
     std::mutex m_mutex;
     
     // Cache for root directory (speeds up tile lookups)
+    // Protected by m_mutex
     std::vector<char> m_rootDirCache;
     bool m_rootDirCached;
 };

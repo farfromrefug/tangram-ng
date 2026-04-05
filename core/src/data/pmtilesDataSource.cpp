@@ -10,10 +10,17 @@
 #include "pmtiles/pmtiles.hpp"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstring>
 #include <fstream>
 
 namespace Tangram {
+
+// Maximum depth of PMTiles directory tree
+static constexpr int MAX_DIRECTORY_DEPTH = 3;
+
+// Heuristic multiplier for initial decompression buffer size
+static constexpr int DECOMPRESSION_SIZE_MULTIPLIER = 4;
 
 PMTilesDataSource::PMTilesDataSource(Platform& _platform, const std::string& _path)
     : m_platform(_platform),
@@ -49,7 +56,7 @@ bool PMTilesDataSource::readRange(uint64_t offset, uint32_t length, std::vector<
         // This allows efficient access to cloud-stored PMTiles without downloading the entire file
         // TODO: Implement proper async HTTP range request handling
         // The platform's startUrlRequest could be extended to support range headers
-        LOGE("PMTiles: HTTP range requests not yet fully implemented");
+        LOGE("PMTiles: HTTP range requests not yet fully implemented - use local files for now");
         return false;
         
     } else {
@@ -62,13 +69,13 @@ bool PMTilesDataSource::readRange(uint64_t offset, uint32_t length, std::vector<
         
         file.seekg(offset);
         if (!file.good()) {
-            LOGE("PMTiles: Failed to seek to offset %llu in file: %s", offset, m_path.c_str());
+            LOGE("PMTiles: Failed to seek to offset %" PRIu64 " in file: %s", offset, m_path.c_str());
             return false;
         }
         
         file.read(data.data(), length);
         if (!file.good() && !file.eof()) {
-            LOGE("PMTiles: Failed to read %u bytes at offset %llu from file: %s", 
+            LOGE("PMTiles: Failed to read %u bytes at offset %" PRIu64 " from file: %s", 
                  length, offset, m_path.c_str());
             return false;
         }
@@ -115,7 +122,8 @@ bool PMTilesDataSource::decompress(const std::vector<char>& compressed,
         case pmtiles::COMPRESSION_GZIP: {
             // Use existing zlib helper
             decompressed.clear();
-            decompressed.reserve(compressed.size() * 4); // Initial capacity
+            // Initial capacity estimate (heuristic: decompressed is ~4x compressed size)
+            decompressed.reserve(compressed.size() * DECOMPRESSION_SIZE_MULTIPLIER);
             
             if (zlib_inflate(compressed.data(), compressed.size(), decompressed) == 0) {
                 return true;
@@ -194,8 +202,8 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
     uint64_t dirOffset = m_header->root_dir_offset;
     uint32_t dirLength = static_cast<uint32_t>(m_header->root_dir_bytes);
     
-    // Traverse directory tree (max depth 3)
-    for (int depth = 0; depth <= 3; depth++) {
+    // Traverse directory tree (max depth defined by PMTiles spec)
+    for (int depth = 0; depth <= MAX_DIRECTORY_DEPTH; depth++) {
         std::vector<pmtiles::entryv3> entries;
         try {
             entries = pmtiles::deserialize_directory(currentDir);
@@ -218,7 +226,7 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
             uint64_t tileOffset = m_header->tile_data_offset + entry.offset;
             
             if (!readRange(tileOffset, entry.length, compressed)) {
-                LOGE("PMTiles: Failed to read tile data at offset %llu, length %u",
+                LOGE("PMTiles: Failed to read tile data at offset %" PRIu64 ", length %u",
                      tileOffset, entry.length);
                 return false;
             }

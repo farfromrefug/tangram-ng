@@ -773,7 +773,6 @@ std::shared_ptr<TileSource> SceneLoader::loadSource(const Node& _source, const s
     bool isTiled = url.empty() || NetworkDataSource::urlHasTilePattern(url);
     bool isMBTilesFile = Url::getPathExtension(url) == "mbtiles";
     bool isPMTilesFile = Url::getPathExtension(url) == "pmtiles";
-    
     if (isMBTilesFile) {
 #ifdef TANGRAM_MBTILES_DATASOURCE
         // If we have MBTiles, we know the source is tiled.
