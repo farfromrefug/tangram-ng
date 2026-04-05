@@ -248,29 +248,33 @@ bool PMTilesDataSource::getTileData(const TileID& _tileId, std::vector<char>& _d
 }
 
 bool PMTilesDataSource::loadTileData(std::shared_ptr<TileTask> _task, TileTaskCb _cb) {
-    // Wrap the task in async worker
+    // Queue async work to avoid blocking the main thread
     m_worker->enqueue([this, _task, _cb]() {
         auto& task = static_cast<BinaryTileTask&>(*_task);
         
         std::vector<char> data;
         if (getTileData(_task->tileId(), data)) {
-            // Set the raw tile data
+            // Successfully loaded tile from PMTiles archive
             task.rawTileData = std::make_shared<std::vector<char>>(std::move(data));
             
-            // Mark task as complete and invoke callback
+            // Invoke callback to notify that data is ready
             if (_cb.func) {
                 _cb.func(_task);
             }
             return true;
         }
         
-        // If tile not found in PMTiles, try next source in chain
+        // Tile not found in PMTiles archive
+        // Try next source in chain (e.g., network source for fallback)
         if (next) {
             return next->loadTileData(_task, _cb);
         }
         
-        // No tile data available
-        task.cancel();
+        // No tile data available from any source
+        // Note: Not calling task.cancel() here to allow for proper error handling upstream
+        if (_cb.func) {
+            _cb.func(_task);
+        }
         return false;
     });
     
