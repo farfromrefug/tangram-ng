@@ -298,17 +298,7 @@ public class MapView extends FrameLayout {
 
     private int pointer1Id = INVALID_POINTER_ID;
     private int pointer2Id = INVALID_POINTER_ID;
-    private boolean useNewTouchHandling = false;
 
-    /**
-     * Enable new touch handling system (similar to Carto Mobile SDK)
-     * This provides more consistent cross-platform touch handling
-     * @param enabled true to use new system, false for legacy gesture-based system
-     */
-    public void setNewTouchHandlingEnabled(boolean enabled) {
-        useNewTouchHandling = enabled;
-    }
-    
     /**
      * Set DPI for touch gesture calculations (affects gesture detection thresholds)
      * This is automatically set from the system DPI, but can be overridden if needed.
@@ -347,11 +337,7 @@ public class MapView extends FrameLayout {
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         if (mapController != null) {
-            if (useNewTouchHandling) {
-                return handleTouchEventNew(ev);
-            } else {
-                return mapController.handleGesture(this, ev);
-            }
+            return handleTouchEventNew(ev);
         }
         return false;
     }

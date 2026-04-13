@@ -14,7 +14,6 @@ import android.util.LongSparseArray;
 import android.view.MotionEvent;
 import android.view.View;
 
-import com.styluslabs.tangram.TouchInput.Gestures;
 import com.styluslabs.tangram.viewholder.GLViewHolder;
 import com.styluslabs.tangram.networking.DefaultHttpHandler;
 import com.styluslabs.tangram.networking.HttpHandler;
@@ -34,11 +33,6 @@ import androidx.annotation.Nullable;
  * {@code MapController} is the main class for interacting with a Tangram map.
  */
 public class MapController {
-
-
-    public boolean handleGesture(View mapView, MotionEvent ev) {
-        return touchInput.onTouch(mapView, ev);
-    }
 
     /**
      * Options for interpolating map parameters
@@ -185,19 +179,6 @@ public class MapController {
         this.viewHolder = viewHolder;
         viewHolder.setRenderer(mapRenderer);
         viewHolder.setRenderMode(GLViewHolder.RenderMode.RENDER_WHEN_DIRTY);
-
-        touchInput = new TouchInput(context);
-
-        touchInput.setPanResponder(getPanResponder());
-        touchInput.setScaleResponder(getScaleResponder());
-        touchInput.setRotateResponder(getRotateResponder());
-        touchInput.setShoveResponder(getShoveResponder());
-
-        touchInput.setSimultaneousDetectionDisabled(Gestures.SHOVE, Gestures.ROTATE);
-        touchInput.setSimultaneousDetectionDisabled(Gestures.ROTATE, Gestures.SHOVE);
-        touchInput.setSimultaneousDetectionDisabled(Gestures.SHOVE, Gestures.SCALE);
-        touchInput.setSimultaneousDetectionDisabled(Gestures.SHOVE, Gestures.PAN);
-        touchInput.setSimultaneousDetectionDisabled(Gestures.SCALE, Gestures.LONG_PRESS);
     }
 
     /**
@@ -233,7 +214,6 @@ public class MapController {
         // Dispose all listener and callbacks associated with mapController
         // This will help prevent leaks of references from the client code, possibly used in these
         // listener/callbacks
-        touchInput = null;
         mapChangeListener = null;
         mapClickListener = null;
         mapInteractionListener = null;
@@ -747,141 +727,6 @@ public class MapController {
     }
 
     /**
-     * Get the {@link TouchInput} for this map.
-     *
-     * {@code TouchInput} allows you to configure how gestures can move the map. You can set custom
-     * responders for any gesture type in {@code TouchInput} to override or extend the default
-     * behavior.
-     *
-     * Note that {@code MapController} assigns the default gesture responders for the pan, rotate,
-     * scale, and shove gestures. If you set custom responders for these gestures, the default
-     * responders will be replaced and those gestures will no longer move the map. To customize
-     * these gesture responders and preserve the default map movement behavior: create a new gesture
-     * responder, get the responder for that gesture from the {@code MapController}, and then in the
-     * new responder call the corresponding methods on the {@code MapController} gesture responder.
-     * @return The {@code TouchInput}.
-     */
-    public TouchInput getTouchInput() {
-        return touchInput;
-    }
-
-    /**
-     * Get a responder for pan gestures
-     */
-    public TouchInput.PanResponder getPanResponder() {
-        return new TouchInput.PanResponder() {
-            @Override
-            public boolean onPanBegin() {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                return true;
-            }
-
-            @Override
-            public boolean onPan(final float startX, final float startY, final float endX, final float endY) {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                nativeMap.handlePanGesture(startX, startY, endX, endY);
-                return true;
-            }
-
-            @Override
-            public boolean onPanEnd() {
-                setMapRegionState(MapRegionChangeState.IDLE);
-                return true;
-            }
-
-            @Override
-            public boolean onFling(final float posX, final float posY, final float velocityX, final float velocityY) {
-                nativeMap.handleFlingGesture(posX, posY, velocityX, velocityY);
-                return true;
-            }
-
-            @Override
-            public boolean onCancelFling() {
-                cancelCameraAnimation();
-                return true;
-            }
-        };
-    }
-
-    /**
-     * Get a responder for rotate gestures
-     */
-    public TouchInput.RotateResponder getRotateResponder() {
-        return new TouchInput.RotateResponder() {
-            @Override
-            public boolean onRotateBegin() {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                return true;
-            }
-
-            @Override
-            public boolean onRotate(final float x, final float y, final float rotation) {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                nativeMap.handleRotateGesture(x, y, rotation);
-                return true;
-            }
-
-            @Override
-            public boolean onRotateEnd() {
-                setMapRegionState(MapRegionChangeState.IDLE);
-                return true;
-            }
-        };
-    }
-
-    /**
-     * Get a responder for scale gestures
-     */
-    public TouchInput.ScaleResponder getScaleResponder() {
-        return new TouchInput.ScaleResponder() {
-            @Override
-            public boolean onScaleBegin() {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                return true;
-            }
-
-            @Override
-            public boolean onScale(final float x, final float y, final float scale, final float velocity) {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                nativeMap.handlePinchGesture(x, y, scale, velocity);
-                return true;
-            }
-
-            @Override
-            public boolean onScaleEnd() {
-                setMapRegionState(MapRegionChangeState.IDLE);
-                return true;
-            }
-        };
-    }
-
-    /**
-     * Get a responder for shove (vertical two-finger drag) gestures
-     */
-    public TouchInput.ShoveResponder getShoveResponder() {
-        return new TouchInput.ShoveResponder() {
-            @Override
-            public boolean onShoveBegin() {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                return true;
-            }
-
-            @Override
-            public boolean onShove(final float distance) {
-                setMapRegionState(MapRegionChangeState.JUMPING);
-                nativeMap.handleShoveGesture(distance);
-                return true;
-            }
-
-            @Override
-            public boolean onShoveEnd() {
-                setMapRegionState(MapRegionChangeState.IDLE);
-                return true;
-            }
-        };
-    }
-
-    /**
      * Set the radius to use when picking features on the map. The default radius is 0.5 dp.
      * @param radius The radius in dp (density-independent pixels).
      */
@@ -1390,7 +1235,6 @@ public class MapController {
     private MapRenderer mapRenderer;
     private GLViewHolder viewHolder;
     private MapRegionChangeState currentState = MapRegionChangeState.IDLE;
-    private TouchInput touchInput;
     private HttpHandler httpHandler;
     private final Map<Long, Object> httpRequestHandles = Collections.synchronizedMap(new HashMap<Long, Object>());
     private FeaturePickListener featurePickListener;
