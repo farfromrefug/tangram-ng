@@ -2,6 +2,10 @@
 #include "log.h"
 #include <memory>
 
+#ifndef TANGRAM_NO_WUFFS
+#include "wuffs.h"
+#else
+
 #ifndef TANGRAM_NO_STB_IMPL
 // Enable only JPEG, PNG, GIF, TGA and PSD
 #define STBI_NO_BMP
@@ -12,6 +16,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #endif
 #include "stb_image.h"
+
+#endif // WUFFS
 
 #define TANGRAM_TIFF_SUPPORT
 #define TANGRAM_LERC_SUPPORT

@@ -503,7 +503,9 @@ void UrlClient::curlLoop() {
 
                 const char* url = task.request.url.c_str();
                 if (resultCode == CURLE_OK) {
-                    LOGD("Succeeded for url: %s", url);
+                    LOGD("Succeeded for url (%.0f ms): %s", [=](){
+                          double t = 0; curl_easy_getinfo(handle, CURLINFO_TOTAL_TIME, &t); return t*1000;
+                        }(), url);
                     response.error = nullptr;
 
                 } else if (task.canceled) {

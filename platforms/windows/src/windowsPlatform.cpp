@@ -17,7 +17,7 @@ bool WindowsPlatform::logToConsole = false;
 
 void logStr(const std::string& msg) {
     if (WindowsPlatform::logToConsole) {
-        fprintf(stderr, msg.c_str());
+        fputs(msg.c_str(), stderr);
     } else {
         OutputDebugStringA(msg.c_str());
     }

@@ -90,6 +90,7 @@ MODULE_SOURCES = \
   src/util/stbImage.cpp               \
   src/util/url.cpp                    \
   src/util/util.cpp                   \
+  src/util/wuffs.c                    \
   src/util/yamlPath.cpp               \
   src/util/yamlUtil.cpp               \
   src/util/zipArchive.cpp             \

@@ -1,23 +1,16 @@
 #include "util/zlibHelper.h"
 
-//#include <zlib.h>
+#ifndef TANGRAM_NO_WUFFS
+#include "wuffs.h"
+#include "log.h"
+#else
 #include "miniz.h"
-
-#include <assert.h>
-
-#define CHUNK 16384
+#endif
 
 namespace Tangram {
 
 int zlib_inflate(const char* _data, size_t _size, std::vector<char>& dst) {
 
-    int ret;
-    unsigned char out[CHUNK];
-
-    z_stream strm;
-    memset(&strm, 0, sizeof(z_stream));
-
-#ifdef MZ_DEFAULT_WINDOW_BITS
     // miniz does not handle gzip - we will check for header and assume no extra header data; we can use
     //  miniz_gzip.h for more robust handling in the future
     if (_size < 2) { return -1; }
@@ -26,52 +19,72 @@ int zlib_inflate(const char* _data, size_t _size, std::vector<char>& dst) {
         // last 4 bytes of gzip file contain uncompressed size
         union { uint8_t bytes[4]; uint32_t dword; } inflsize;
         memcpy(inflsize.bytes, &_data[_size-4], 4);
-        dst.reserve(std::min(uint32_t(10*_size), inflsize.dword));
+        dst.resize(std::min(uint32_t(10*_size), inflsize.dword));
         //if(_data[3] & 0b0001'1110)  LOGE("Extra header fields present");
         _data += 10;
         _size -= 10;  //18;  -- in case footer is missing
     }
     // check for raw zlib header
-    else if (_size > 7 && _data[0] == 0x78 && (d1 == 0x01 || d1 == 0x5E || d1 == 0x9C || d1 == 0xDA)) {}
-#ifndef TANGRAM_TILE_RAW_DEFLATE
+    else if (_size > 7 && _data[0] == 0x78 && (d1 == 0x01 || d1 == 0x5E || d1 == 0x9C || d1 == 0xDA)) {
+        _data += 2;  // need to advance for WUFFS (but not zlib)
+        _size -= 2;
+        dst.resize(_size*4);
+    }
+//#ifndef TANGRAM_TILE_RAW_DEFLATE
     else { return -1; }
-#endif
-    ret = inflateInit2(&strm, -MZ_DEFAULT_WINDOW_BITS);
+//#endif
+
+#ifndef TANGRAM_NO_WUFFS
+    auto dec = wuffs_deflate__decoder::alloc();
+    auto status = wuffs_deflate__decoder__initialize(dec.get(), sizeof__wuffs_deflate__decoder(), WUFFS_VERSION, 0);
+    if (!wuffs_base__status__is_ok(&status)) { return -1; }
+
+    auto rdbuf = wuffs_base__ptr_u8__reader((uint8_t*)_data, _size, true);
+    auto wrbuf = wuffs_base__ptr_u8__writer((uint8_t*)dst.data(), dst.size());
+    constexpr size_t wbsize = WUFFS_DEFLATE__DECODER_WORKBUF_LEN_MAX_INCL_WORST_CASE;  //+1 in case it's 0?
+    uint8_t workbuf[wbsize];
+    auto wbslice = wuffs_base__make_slice_u8(workbuf, wbsize);  //(nullptr, 0)
+
+    while (true) {
+        status = wuffs_deflate__decoder__transform_io(dec.get(), &wrbuf, &rdbuf, wbslice);
+        if (wuffs_base__status__is_ok(&status)) {
+            dst.resize(wrbuf.meta.wi);
+            return 0;
+        } else if (status.repr != wuffs_base__suspension__short_write) {
+            LOGE("WUFFS error: %s", wuffs_base__status__message(&status));
+            return -1;
+        }
+        dst.resize(2*dst.size());
+        wrbuf.data.ptr = (uint8_t*)dst.data();
+        wrbuf.data.len = dst.size();
+    }
 #else
-    ret = inflateInit2(&strm, 16+MAX_WBITS);  // +16 to detect and handle gzip
-#endif
+    z_stream strm;
+    memset(&strm, 0, sizeof(z_stream));
+
+    int ret = inflateInit2(&strm, -MZ_DEFAULT_WINDOW_BITS);
     if (ret != Z_OK) { return ret; }
 
     strm.avail_in = _size;
     strm.next_in = (Bytef*)_data;
 
-    do {
-        strm.avail_out = CHUNK;
-        strm.next_out = out;
+    while (true) {
+        strm.avail_out = dst.size() - strm.total_out;
+        strm.next_out = (uint8_t*)dst.data() + strm.total_out;
 
         ret = inflate(&strm, Z_NO_FLUSH);
 
-         /* state not clobbered */
-        assert(ret != Z_STREAM_ERROR);
-
-        switch (ret) {
-        case Z_NEED_DICT:
-            ret = Z_DATA_ERROR;
-            /* fall through */
-        case Z_DATA_ERROR:
-        case Z_MEM_ERROR:
-            inflateEnd(&strm);
-            return ret;
+        if(ret != Z_OK) {
+            dst.resize(strm.total_out);
+            break;
         }
-
-        size_t have = CHUNK - strm.avail_out;
-        dst.insert(dst.end(), out, out+have);
-
-    } while (ret == Z_OK);
+        dst.resize(2*dst.size());
+    }
 
     inflateEnd(&strm);
 
-    return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
+    return ret == Z_STREAM_END ? Z_OK : ret;
+#endif
 }
 
 }
