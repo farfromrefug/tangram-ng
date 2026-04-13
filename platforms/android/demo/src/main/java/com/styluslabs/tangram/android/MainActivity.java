@@ -148,21 +148,22 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
                         return true;
                     }
                     case CLICK_TYPE_DOUBLE: {
-                        LngLat tapped = map.screenPositionToLngLat(new PointF(x, y));
+//                        LngLat tapped = map.screenPositionToLngLat(new PointF(x, y));
+//
+//                        Marker p = map.addMarker();
+//                        p.setStylingFromPath(pointStylingPath);
+//                        p.setPoint(tapped);
+//                        pointMarkers.add(p);
 
-                        Marker p = map.addMarker();
-                        p.setStylingFromPath(pointStylingPath);
-                        p.setPoint(tapped);
-                        pointMarkers.add(p);
-
-                        CameraPosition camera = map.getCameraPosition();
-
-                        camera.longitude = .5 * (tapped.longitude + camera.longitude);
-                        camera.latitude = .5 * (tapped.latitude + camera.latitude);
-                        camera.zoom += 1;
-                        map.updateCameraPosition(CameraUpdateFactory.newCameraPosition(camera),
-                                500, MapController.EaseType.CUBIC);
-                        return true;
+//                        CameraPosition camera = map.getCameraPosition();
+//
+//                        camera.longitude = .5 * (tapped.longitude + camera.longitude);
+//                        camera.latitude = .5 * (tapped.latitude + camera.latitude);
+//                        camera.zoom += 1;
+//                        map.updateCameraPosition(CameraUpdateFactory.newCameraPosition(camera),
+//                                500, MapController.EaseType.CUBIC);
+//                        return true;
+                        break;
                     }
                     case CLICK_TYPE_LONG: {
 

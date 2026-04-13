@@ -5,7 +5,9 @@
 
 namespace Tangram {
 
-// Screen position for touch coordinates
+enum class TouchAction;
+
+    // Screen position for touch coordinates
 struct ScreenPos {
     float x;
     float y;
@@ -24,10 +26,19 @@ enum class ClickType {
 
 // Map click listener interface
 // Called when the user performs a tap on the map
+class OnTouchListener {
+public:
+    virtual ~OnTouchListener() = default;
+    
+    virtual bool onTouchEvent(TouchAction action, const ScreenPos& screenPos1, const ScreenPos& screenPos2) = 0;
+};
+
+// Map click listener interface
+// Called when the user performs a tap on the map
 class MapClickListener {
 public:
     virtual ~MapClickListener() = default;
-    
+
     // Called when a tap occurs
     // Return true to consume the event and prevent default behavior (centering)
     // Return false to allow default handling
