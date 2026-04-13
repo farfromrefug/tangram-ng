@@ -187,6 +187,8 @@ add_library(tangram-core
   src/util/clickHandlerWorker.cpp
   src/util/url.cpp
   src/util/util.cpp
+  src/util/wuffs.h
+  src/util/wuffs.c
   src/util/yamlPath.h
   src/util/yamlPath.cpp
   src/util/yamlUtil.h
