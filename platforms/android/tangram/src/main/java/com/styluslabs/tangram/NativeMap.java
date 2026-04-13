@@ -81,6 +81,9 @@ class NativeMap {
     native synchronized void setDpi(float dpi);
     native synchronized void setPanningMode(int mode);
     native synchronized int getPanningMode();
+    
+    native synchronized void setMapClickListener(MapClickListener listener);
+    native synchronized void setMapInteractionListener(MapInteractionListener listener);
 
     native synchronized long addClientDataSource(String name, boolean generateCentroid);
     native synchronized void removeClientDataSource(long sourcePtr);

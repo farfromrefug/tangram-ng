@@ -29,6 +29,59 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(JNIEnv* jniEnv, jobjectArra
     return sceneUpdates;
 }
 
+// JNI wrapper for MapClickListener
+class JniMapClickListener : public MapClickListener {
+public:
+    JniMapClickListener(JNIEnv* env, jobject listener) {
+        m_listener = env->NewGlobalRef(listener);
+        jclass listenerClass = env->GetObjectClass(listener);
+        m_onMapClickMethod = env->GetMethodID(listenerClass, "onMapClick", "(IFF)Z");
+        env->DeleteLocalRef(listenerClass);
+    }
+    
+    ~JniMapClickListener() {
+        JniThreadBinding jniEnv(JniHelpers::getJVM());
+        jniEnv->DeleteGlobalRef(m_listener);
+    }
+    
+    bool onMapClick(ClickType clickType, float x, float y) override {
+        JniThreadBinding jniEnv(JniHelpers::getJVM());
+        jboolean result = jniEnv->CallBooleanMethod(m_listener, m_onMapClickMethod, (jint)clickType, x, y);
+        return result;
+    }
+    
+private:
+    jobject m_listener;
+    jmethodID m_onMapClickMethod;
+};
+
+// JNI wrapper for MapInteractionListener  
+class JniMapInteractionListener : public MapInteractionListener {
+public:
+    JniMapInteractionListener(JNIEnv* env, jobject listener) {
+        m_listener = env->NewGlobalRef(listener);
+        jclass listenerClass = env->GetObjectClass(listener);
+        m_onMapInteractionMethod = env->GetMethodID(listenerClass, "onMapInteraction", "(ZZZZ)Z");
+        env->DeleteLocalRef(listenerClass);
+    }
+    
+    ~JniMapInteractionListener() {
+        JniThreadBinding jniEnv(JniHelpers::getJVM());
+        jniEnv->DeleteGlobalRef(m_listener);
+    }
+    
+    bool onMapInteraction(bool isPanning, bool isZooming, bool isRotating, bool isTilting) override {
+        JniThreadBinding jniEnv(JniHelpers::getJVM());
+        jboolean result = jniEnv->CallBooleanMethod(m_listener, m_onMapInteractionMethod, 
+                                                     isPanning, isZooming, isRotating, isTilting);
+        return result;
+    }
+    
+private:
+    jobject m_listener;
+    jmethodID m_onMapInteractionMethod;
+};
+
 extern "C" {
 
 #define NATIVE_METHOD(NAME) JNIEXPORT JNICALL Java_com_styluslabs_tangram_NativeMap_ ## NAME
@@ -617,6 +670,26 @@ void NATIVE_METHOD(setClientDataVisible)(JNIEnv* env, jobject obj, jlong javaSou
 jboolean NATIVE_METHOD(getClientDataVisible)(JNIEnv* env, jobject obj, jlong javaSourcePtr) {
     auto* source = reinterpret_cast<ClientDataSource*>(javaSourcePtr);
     return source->isVisible();
+}
+
+void NATIVE_METHOD(setMapClickListener)(JNIEnv* env, jobject obj, jobject listener) {
+    auto* map = androidMapFromJava(env, obj);
+    if (listener == nullptr) {
+        map->setMapClickListener(nullptr);
+    } else {
+        auto wrappedListener = std::make_shared<JniMapClickListener>(env, listener);
+        map->setMapClickListener(wrappedListener);
+    }
+}
+
+void NATIVE_METHOD(setMapInteractionListener)(JNIEnv* env, jobject obj, jobject listener) {
+    auto* map = androidMapFromJava(env, obj);
+    if (listener == nullptr) {
+        map->setMapInteractionListener(nullptr);
+    } else {
+        auto wrappedListener = std::make_shared<JniMapInteractionListener>(env, listener);
+        map->setMapInteractionListener(wrappedListener);
+    }
 }
 
 } // extern "C"
