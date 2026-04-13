@@ -35,24 +35,45 @@ public:
     JniMapClickListener(JNIEnv* env, jobject listener) {
         m_listener = env->NewGlobalRef(listener);
         jclass listenerClass = env->GetObjectClass(listener);
-        m_onMapClickMethod = env->GetMethodID(listenerClass, "onMapClick", "(IFF)Z");
+        // The ClickType enum is nested inside MapClickListener, so the signature is:
+        // (Lcom/styluslabs/tangram/MapClickListener$ClickType;FF)Z
+        m_onMapClickMethod = env->GetMethodID(listenerClass, "onMapClick", "(Lcom/styluslabs/tangram/MapClickListener$ClickType;FF)Z");
         env->DeleteLocalRef(listenerClass);
+        
+        // Get the ClickType enum class and values
+        jclass clickTypeClass = env->FindClass("com/styluslabs/tangram/MapClickListener$ClickType");
+        jmethodID valuesMethod = env->GetStaticMethodID(clickTypeClass, "values", "()[Lcom/styluslabs/tangram/MapClickListener$ClickType;");
+        jobjectArray clickTypeValues = (jobjectArray)env->CallStaticObjectMethod(clickTypeClass, valuesMethod);
+        
+        // Cache the enum values
+        for (int i = 0; i < 4; i++) {
+            m_clickTypeValues[i] = env->NewGlobalRef(env->GetObjectArrayElement(clickTypeValues, i));
+        }
+        
+        env->DeleteLocalRef(clickTypeValues);
+        env->DeleteLocalRef(clickTypeClass);
     }
     
     ~JniMapClickListener() {
         JniThreadBinding jniEnv(JniHelpers::getJVM());
         jniEnv->DeleteGlobalRef(m_listener);
+        for (int i = 0; i < 4; i++) {
+            jniEnv->DeleteGlobalRef(m_clickTypeValues[i]);
+        }
     }
     
     bool onMapClick(ClickType clickType, float x, float y) override {
         JniThreadBinding jniEnv(JniHelpers::getJVM());
-        jboolean result = jniEnv->CallBooleanMethod(m_listener, m_onMapClickMethod, (jint)clickType, x, y);
+        // Pass the cached enum value instead of an int
+        jobject clickTypeEnum = m_clickTypeValues[(int)clickType];
+        jboolean result = jniEnv->CallBooleanMethod(m_listener, m_onMapClickMethod, clickTypeEnum, x, y);
         return result;
     }
     
 private:
     jobject m_listener;
     jmethodID m_onMapClickMethod;
+    jobject m_clickTypeValues[4]; // Cache for SINGLE, LONG, DOUBLE, DUAL
 };
 
 // JNI wrapper for MapInteractionListener  
