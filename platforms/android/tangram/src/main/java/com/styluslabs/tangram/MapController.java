@@ -888,7 +888,7 @@ public class MapController {
      */
     public void setMapClickListener(@Nullable final MapClickListener listener) {
         mapClickListener = listener;
-        // TODO: Register listener with native touch handler via JNI
+        nativeMap.setMapClickListener(listener);
     }
 
     /**
@@ -897,7 +897,7 @@ public class MapController {
      */
     public void setMapInteractionListener(@Nullable final MapInteractionListener listener) {
         mapInteractionListener = listener;
-        // TODO: Register listener with native touch handler via JNI
+        nativeMap.setMapInteractionListener(listener);
     }
     
     /**
