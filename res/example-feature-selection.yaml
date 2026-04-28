@@ -1,0 +1,421 @@
+# Example: Feature Selection from Local MBTiles
+# This example demonstrates how to select and highlight features from a local
+# MBTiles vector tile layer. Selected features can be styled differently using
+# scene updates or by creating a separate client-side overlay.
+
+global:
+    font_sans: "Inter"
+    # Global variable to store selected feature ID
+    selected_feature_id: ""
+
+fonts:
+  "Inter":
+    - url: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf"
+
+sources:
+    # Local vector tiles from MBTiles file
+    # Contains vector features that can be queried and selected
+    local-data:
+        type: MVT
+        url: local-data.mbtiles
+        max_zoom: 14
+
+    # Client-side source for selection overlay
+    # This source will contain a copy of the selected feature
+    selection-overlay:
+        type: GeoJSON
+        max_zoom: 16
+
+# Styles for normal and selected features
+styles:
+    # Normal building style
+    buildings-normal:
+        base: polygons
+        blend: opaque
+        draw:
+            color: '#dfdbd7'
+            order: 10
+
+    # Selected building style (highlighted)
+    buildings-selected:
+        base: polygons
+        blend: overlay
+        draw:
+            color: '#FF5722'  # Orange highlight
+            alpha: 0.8
+            order: 100
+            outline:
+                color: '#D84315'  # Darker orange outline
+                width: 2px
+
+    # Normal road style
+    roads-normal:
+        base: lines
+        blend: opaque
+        draw:
+            color: '#ffffff'
+            width: [[10, 1px], [14, 3px], [18, 8px]]
+            order: 20
+
+    # Selected road style (highlighted)
+    roads-selected:
+        base: lines
+        blend: overlay
+        draw:
+            color: '#2196F3'  # Blue highlight
+            width: [[10, 3px], [14, 6px], [18, 12px]]
+            order: 101
+            outline:
+                color: '#1565C0'
+                width: 1px
+
+    # Normal area/landuse style
+    areas-normal:
+        base: polygons
+        blend: opaque
+        draw:
+            color: '#d8e8c8'
+            order: 5
+
+    # Selected area style
+    areas-selected:
+        base: polygons
+        blend: overlay
+        draw:
+            color: '#8BC34A'  # Green highlight
+            alpha: 0.7
+            order: 99
+            outline:
+                color: '#689F38'
+                width: 2px
+
+cameras:
+    perspective-camera:
+        position: [-122.434, 37.777, 15]
+        type: perspective
+        fov: 45
+
+layers:
+    # Background
+    earth:
+        data: { source: local-data, layer: water }
+        draw:
+            polygons:
+                color: '#a0c8f0'
+                order: 0
+
+    # Normal buildings layer
+    buildings:
+        data: { source: local-data, layer: building }
+        draw:
+            buildings-normal:
+                interactive: true  # Enable picking
+                order: 10
+
+    # Normal roads layer
+    roads:
+        data: { source: local-data, layer: transportation }
+        filter: { class: [motorway, trunk, primary, secondary, tertiary] }
+        draw:
+            roads-normal:
+                interactive: true  # Enable picking
+                order: 20
+
+    # Normal areas layer
+    areas:
+        data: { source: local-data, layer: landuse }
+        draw:
+            areas-normal:
+                interactive: true  # Enable picking
+                order: 5
+
+    # Selected feature overlay (populated by client code)
+    selected-buildings:
+        data: { source: selection-overlay }
+        filter: { layer: building }
+        draw:
+            buildings-selected:
+                order: 100
+
+    selected-roads:
+        data: { source: selection-overlay }
+        filter: { layer: transportation }
+        draw:
+            roads-selected:
+                order: 101
+
+    selected-areas:
+        data: { source: selection-overlay }
+        filter: { layer: landuse }
+        draw:
+            areas-selected:
+                order: 99
+
+# ============================================================================
+# C++ API Usage Examples - Feature Selection
+# ============================================================================
+
+# Example 1: Basic Feature Picking and Highlighting
+# Pick a feature on click and highlight it using an overlay
+#
+# C++:
+#   #include "tangram.h"
+#   #include <nlohmann/json.hpp>
+#
+#   // Global references
+#   Tangram::Map* map;
+#   std::shared_ptr<Tangram::ClientDataSource> selectionSource;
+#   
+#   // Initialize selection overlay source
+#   void initSelectionOverlay() {
+#       selectionSource = std::make_shared<Tangram::ClientDataSource>(
+#           platform, "selection-overlay", "");
+#       map->addTileSource(selectionSource);
+#   }
+#
+#   // Handle mouse/touch click
+#   void onMapClick(float screenX, float screenY) {
+#       map->pickFeatureAt(screenX, screenY, 
+#           [](const Tangram::FeaturePickResult* result) {
+#               if (!result || !result->properties) {
+#                   // No feature picked - clear selection
+#                   selectionSource->clearFeatures();
+#                   selectionSource->generateTiles();
+#                   return;
+#               }
+#
+#               // Feature was picked - highlight it
+#               highlightFeature(result);
+#           });
+#   }
+
+# Example 2: Create Selection Overlay from Picked Feature
+# Convert picked feature properties to GeoJSON overlay
+#
+# C++:
+#   void highlightFeature(const Tangram::FeaturePickResult* result) {
+#       // Clear previous selection
+#       selectionSource->clearFeatures();
+#
+#       // Get feature properties
+#       auto props = result->properties;
+#       
+#       // Get geometry info (you need to reconstruct geometry from properties)
+#       // Note: FeaturePickResult doesn't include full geometry, 
+#       // so you need to query it from your data or store it
+#       
+#       // For demonstration, assume we stored the geometry in properties
+#       std::string geometryType = props->getString("_geometry_type");
+#       
+#       if (geometryType == "Point") {
+#           // Highlight a point feature
+#           Tangram::Properties selProps;
+#           selProps.set("layer", props->getString("_layer"));
+#           // Copy other properties as needed
+#           
+#           double lng = props->getDouble("_lng");
+#           double lat = props->getDouble("_lat");
+#           selectionSource->addPointFeature(
+#               std::move(selProps),
+#               Tangram::LngLat{lng, lat}
+#           );
+#       }
+#       
+#       selectionSource->generateTiles();
+#   }
+
+# Example 3: Selection Using Scene Updates (Alternative Method)
+# Instead of overlay, update the scene to style selected feature differently
+#
+# C++:
+#   #include <sstream>
+#
+#   std::string selectedFeatureId;
+#
+#   void selectFeatureById(const std::string& featureId, const std::string& layer) {
+#       selectedFeatureId = featureId;
+#       
+#       // Create scene update to change styling for selected feature
+#       std::ostringstream styleUpdate;
+#       styleUpdate << "{ filter: { id: " << featureId << " }, "
+#                   << "draw: { "
+#                   << "polygons: { color: '#FF5722', order: 100, "
+#                   << "outline: { color: '#D84315', width: 2px } } } }";
+#       
+#       std::string layerPath = "layers." + layer + "_selected";
+#       
+#       std::vector<Tangram::SceneUpdate> updates = {
+#           {layerPath + ".data", "{ source: local-data, layer: " + layer + " }"},
+#           {layerPath + ".draw", styleUpdate.str()}
+#       };
+#       
+#       // Apply scene updates
+#       map->updateGlobals(updates, true);  // true = rebuild tiles
+#   }
+#
+#   void clearSelection() {
+#       if (selectedFeatureId.empty()) return;
+#       
+#       // Remove the selection layer by updating to empty
+#       std::vector<Tangram::SceneUpdate> updates = {
+#           {"layers.building_selected.draw", "{}"}
+#       };
+#       
+#       map->updateGlobals(updates, true);
+#       selectedFeatureId.clear();
+#   }
+
+# Example 4: Multi-Select with Different Colors
+# Allow selecting multiple features with different highlight colors
+#
+# C++:
+#   #include <map>
+#
+#   std::map<std::string, Tangram::LngLat> selectedFeatures;
+#
+#   void toggleFeatureSelection(const Tangram::FeaturePickResult* result) {
+#       if (!result || !result->properties) return;
+#       
+#       std::string featureId = result->properties->getString("id");
+#       
+#       // Toggle selection
+#       if (selectedFeatures.count(featureId)) {
+#           selectedFeatures.erase(featureId);
+#       } else {
+#           selectedFeatures[featureId] = {
+#               result->properties->getDouble("_lng"),
+#               result->properties->getDouble("_lat")
+#           };
+#       }
+#       
+#       // Update overlay
+#       updateSelectionOverlay();
+#   }
+#
+#   void updateSelectionOverlay() {
+#       selectionSource->clearFeatures();
+#       
+#       for (const auto& [id, coords] : selectedFeatures) {
+#           Tangram::Properties props;
+#           props.set("id", id);
+#           props.set("selected", "true");
+#           
+#           selectionSource->addPointFeature(
+#               std::move(props),
+#               coords
+#           );
+#       }
+#       
+#       selectionSource->generateTiles();
+#   }
+
+# Example 5: Selection with Custom Property Filtering
+# Select features based on property values
+#
+# C++:
+#   void selectFeaturesByProperty(const std::string& propertyName, 
+#                                  const std::string& propertyValue) {
+#       // Use scene update to create a filter-based selection layer
+#       std::ostringstream filterUpdate;
+#       filterUpdate << "{ " << propertyName << ": " << propertyValue << " }";
+#       
+#       std::vector<Tangram::SceneUpdate> updates = {
+#           {"layers.property_selection.data", "{ source: local-data, layer: building }"},
+#           {"layers.property_selection.filter", filterUpdate.str()},
+#           {"layers.property_selection.draw", 
+#            "{ polygons: { color: '#4CAF50', alpha: 0.7, order: 100 } }"}
+#       };
+#       
+#       map->updateGlobals(updates, true);
+#   }
+
+# Example 6: Interactive Selection with Visual Feedback
+# Complete example with mouse hover and click
+#
+# C++:
+#   class FeatureSelector {
+#   private:
+#       Tangram::Map* map;
+#       std::shared_ptr<Tangram::ClientDataSource> hoverSource;
+#       std::shared_ptr<Tangram::ClientDataSource> selectSource;
+#       std::string hoveredFeatureId;
+#       std::string selectedFeatureId;
+#       
+#   public:
+#       FeatureSelector(Tangram::Map* m, Platform& platform) : map(m) {
+#           // Create hover overlay
+#           hoverSource = std::make_shared<Tangram::ClientDataSource>(
+#               platform, "hover-overlay", "");
+#           map->addTileSource(hoverSource);
+#           
+#           // Create selection overlay
+#           selectSource = std::make_shared<Tangram::ClientDataSource>(
+#               platform, "selection-overlay", "");
+#           map->addTileSource(selectSource);
+#       }
+#       
+#       void onMouseMove(float x, float y) {
+#           map->pickFeatureAt(x, y,
+#               [this](const Tangram::FeaturePickResult* result) {
+#                   if (result && result->properties) {
+#                       std::string id = result->properties->getString("id");
+#                       if (id != hoveredFeatureId && id != selectedFeatureId) {
+#                           highlightHover(result);
+#                       }
+#                   } else {
+#                       clearHover();
+#                   }
+#               });
+#       }
+#       
+#       void onClick(float x, float y) {
+#           map->pickFeatureAt(x, y,
+#               [this](const Tangram::FeaturePickResult* result) {
+#                   if (result && result->properties) {
+#                       selectFeature(result);
+#                   } else {
+#                       clearSelection();
+#                   }
+#               });
+#       }
+#       
+#   private:
+#       void highlightHover(const Tangram::FeaturePickResult* result) {
+#           // Add hover highlight (lighter color)
+#           hoverSource->clearFeatures();
+#           // Add feature to hover source with properties
+#           hoverSource->generateTiles();
+#       }
+#       
+#       void clearHover() {
+#           hoverSource->clearFeatures();
+#           hoverSource->generateTiles();
+#       }
+#       
+#       void selectFeature(const Tangram::FeaturePickResult* result) {
+#           selectSource->clearFeatures();
+#           // Add feature to selection source
+#           selectSource->generateTiles();
+#           selectedFeatureId = result->properties->getString("id");
+#       }
+#       
+#       void clearSelection() {
+#           selectSource->clearFeatures();
+#           selectSource->generateTiles();
+#           selectedFeatureId.clear();
+#       }
+#   };
+
+# Notes:
+# - Set `interactive: true` on layers you want to be pickable
+# - FeaturePickResult contains feature properties but not full geometry
+# - For full geometry, you may need to:
+#   1. Store geometry in feature properties (not recommended for large geometries)
+#   2. Query your original data source using feature ID
+#   3. Use a separate geometry cache
+# - Scene updates with filters allow selection without overlay sources
+# - Multiple overlay sources can be used for different selection states (hover, select, etc.)
+# - Selection performance depends on data size and complexity
+# - Consider using simpler geometry for selection overlays (e.g., centroids for polygons)
+# - Remember to call generateTiles() after modifying client data sources
+# - pickFeatureAt() is asynchronous - use callback for results

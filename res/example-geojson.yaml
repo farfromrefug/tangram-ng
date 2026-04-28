@@ -1,0 +1,260 @@
+# Example: GeoJSON Source
+# This example demonstrates various ways to use GeoJSON data sources
+# including inline data, remote URLs, tiled GeoJSON, and client-side data
+
+global:
+    font_sans: "Inter"
+
+fonts:
+  "Inter":
+    - url: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf"
+
+sources:
+    # Example 1: Remote GeoJSON file (non-tiled)
+    # Best for small to medium datasets that fit in memory
+    remote-geojson:
+        type: GeoJSON
+        url: https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson
+        generate_label_centroids: true  # Auto-generate centroids for polygon labels
+        max_zoom: 16
+
+    # Example 2: Tiled GeoJSON (with tile pattern in URL)
+    # Best for large datasets split into tiles
+    tiled-geojson:
+        type: GeoJSON
+        url: https://example.com/tiles/{z}/{x}/{y}.geojson
+        max_zoom: 14
+        min_display_zoom: 8  # Don't display below this zoom
+
+    # Example 3: Local GeoJSON file from MBTiles
+    # Useful for offline usage and pre-packaged data
+    local-geojson:
+        type: GeoJSON
+        url: mydata.mbtiles  # MBTiles file containing GeoJSON tiles
+        max_zoom: 15
+
+    # Example 4: TopoJSON (similar to GeoJSON but more compact)
+    topojson-data:
+        type: TopoJSON
+        url: https://example.com/data.topojson
+        max_zoom: 14
+
+    # Base map for context
+    basemap:
+        type: MVT
+        url: https://tiles.openfreemap.org/planet/latest/{z}/{x}/{y}.pbf
+        max_zoom: 14
+
+# Styles for rendering GeoJSON features
+styles:
+    # Polygon style for areas
+    geojson-polygons:
+        base: polygons
+        blend: overlay
+        draw:
+            color: '#4285F4'
+            alpha: 0.5
+            order: 10
+
+    # Highlighted polygons
+    geojson-polygons-highlight:
+        base: polygons
+        blend: overlay
+        draw:
+            color: '#EA4335'
+            alpha: 0.7
+            order: 11
+
+    # Line style for boundaries and paths
+    geojson-lines:
+        base: lines
+        blend: overlay
+        draw:
+            color: '#0066CC'
+            width: 2px
+            order: 20
+
+    # Point style for markers
+    geojson-points:
+        base: points
+        blend: overlay
+        draw:
+            color: '#FF5722'
+            size: 12px
+            order: 30
+
+    # Custom style using property-based coloring
+    geojson-choropleth:
+        base: polygons
+        blend: overlay
+        shaders:
+            blocks:
+                color: |
+                    // Color based on feature properties
+                    // Access via global.feature_property in scene or shader
+                    color.rgb = mix(vec3(0.8, 0.9, 1.0), vec3(0.1, 0.3, 0.8), 
+                                   clamp(v_color.r, 0.0, 1.0));
+
+cameras:
+    perspective-camera:
+        position: [0, 20, 3]  # Centered on world
+        type: perspective
+        fov: 45
+
+layers:
+    # Base map context
+    earth:
+        data: { source: basemap, layer: water }
+        draw:
+            polygons:
+                color: '#a0c8f0'
+                order: 0
+
+    # Example 1: Simple GeoJSON polygons
+    # Renders all polygons from the GeoJSON source
+    countries:
+        data: { source: remote-geojson }
+        filter: { geometry: polygon }
+        draw:
+            geojson-polygons:
+                order: 10
+
+    # Example 2: GeoJSON with property-based filtering
+    # Only show features matching specific properties
+    large-countries:
+        data: { source: remote-geojson }
+        filter: 
+            geometry: polygon
+            # Filter by GeoJSON properties
+            # area_sqkm: { min: 1000000 }  # Example property filter
+        draw:
+            geojson-polygons-highlight:
+                order: 11
+
+    # Example 3: GeoJSON lines
+    # Render line and multiline geometries
+    boundaries:
+        data: { source: remote-geojson }
+        filter: { geometry: [line, multiline] }
+        draw:
+            geojson-lines:
+                width: 2px
+                order: 20
+
+    # Example 4: GeoJSON points with labels
+    # Render point features with text labels from properties
+    cities:
+        data: { source: tiled-geojson }
+        filter: 
+            geometry: point
+            $zoom: { min: 8 }  # Only show at zoom 8+
+        draw:
+            geojson-points:
+                size: [[8, 4px], [12, 8px], [16, 12px]]
+                order: 30
+            text:
+                # Use GeoJSON property for label text
+                text_source: function() { return feature.name || 'Unnamed'; }
+                font:
+                    family: global.font_sans
+                    size: [[8, 10px], [12, 12px], [16, 14px]]
+                    fill: black
+                    stroke: { color: white, width: 2 }
+                order: 31
+
+    # Example 5: Property-based styling
+    # Color features based on their properties using JavaScript functions
+    colored-regions:
+        data: { source: remote-geojson }
+        filter: { geometry: polygon }
+        draw:
+            polygons:
+                # Color based on properties
+                color: |
+                    function() {
+                        var pop = feature.population || 0;
+                        if (pop > 100000000) return '#8B0000';
+                        if (pop > 50000000) return '#DC143C';
+                        if (pop > 10000000) return '#FF6347';
+                        return '#FFA07A';
+                    }
+                alpha: 0.6
+                order: 12
+
+    # Example 6: Zoom-dependent rendering
+    # Show different feature sets at different zoom levels
+    detail-features:
+        data: { source: tiled-geojson }
+        filter: { $zoom: { min: 10, max: 16 } }
+        draw:
+            polygons:
+                color: '#34A853'
+                alpha: [[10, 0.2], [13, 0.4], [16, 0.6]]
+                order: 13
+
+    # Example 7: Labels with centroids
+    # Use auto-generated centroids for polygon labels
+    country-labels:
+        data: { source: remote-geojson }
+        filter: 
+            geometry: polygon
+            $zoom: { min: 4 }
+        draw:
+            text:
+                text_source: function() { return feature.name || ''; }
+                font:
+                    family: global.font_sans
+                    size: 11px
+                    fill: '#333'
+                    stroke: { color: white, width: 2px }
+                    transform: uppercase
+                order: 100
+
+# Using Client-Side GeoJSON Data (via API):
+# In your application code, you can add GeoJSON dynamically:
+#
+# C++ API:
+#   map->addDataLayer("my-geojson", true);  // true = generate centroids
+#   map->addData("my-geojson", geojsonString);
+#
+# Then reference it in your scene:
+#   sources:
+#       my-geojson:
+#           type: GeoJSON
+#           max_zoom: 16
+#
+#   layers:
+#       my-features:
+#           data: { source: my-geojson }
+#           draw: ...
+
+# GeoJSON Feature Properties:
+# - Access feature properties in filters: feature.property_name
+# - Use in text labels: text_source: function() { return feature.name; }
+# - Style based on properties using JavaScript functions
+# - Properties are preserved from the original GeoJSON
+
+# Performance Tips:
+# - For large datasets, use tiled GeoJSON (URL with {z}/{x}/{y} pattern)
+# - Use appropriate max_zoom to limit detail level
+# - Use min_display_zoom to avoid loading data at low zoom levels
+# - Enable generate_label_centroids only when needed for labels
+# - Consider converting large GeoJSON to MVT (Mapbox Vector Tiles) for better performance
+# - Use filtering to show only relevant features at each zoom level
+
+# GeoJSON vs MVT:
+# - GeoJSON: Simple, human-readable, good for small-medium datasets
+# - MVT: Compact binary format, better performance for large datasets
+# - Both support properties, filtering, and styling
+# - MVT requires pre-processing (e.g., with tippecanoe)
+
+# TopoJSON:
+# - More compact than GeoJSON (stores topology, not geometry)
+# - Same API and usage as GeoJSON in Tangram
+# - Good for datasets with shared boundaries (e.g., political boundaries)
+
+# Supported Geometry Types:
+# - Point, MultiPoint
+# - LineString, MultiLineString
+# - Polygon, MultiPolygon
+# - GeometryCollection (contains mixed geometry types)

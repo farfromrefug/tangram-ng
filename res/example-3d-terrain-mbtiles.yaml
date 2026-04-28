@@ -1,0 +1,103 @@
+# Example: 3D Terrain from Local MBTiles
+# This example demonstrates how to use locally stored MBTiles files for 3D terrain rendering
+# MBTiles format provides efficient offline storage for map tiles
+
+global:
+    font_sans: "Inter"
+
+fonts:
+  "Inter":
+    - url: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf"
+
+sources:
+    # Elevation data from local MBTiles file
+    # The elevation tiles use Mapzen Terrarium format encoding height data in RGB
+    elevation:
+        type: Raster
+        url: elevation.mbtiles  # Local path to MBTiles file
+        max_zoom: 15
+
+    # Satellite imagery from local MBTiles file
+    # References the elevation source for 3D terrain effect
+    satellite:
+        type: Raster
+        url: satellite.mbtiles  # Local path to MBTiles file
+        max_zoom: 18
+        rasters: [ elevation ]  # Link to elevation data for 3D terrain
+
+    # Optional: Vector tile base map from local MBTiles
+    basemap:
+        type: MVT
+        url: basemap.mbtiles  # Local path to vector tiles MBTiles file
+        max_zoom: 14
+        rasters: [ elevation ]  # Also apply elevation to vector features
+
+# Enable 3D terrain rendering
+scene:
+    terrain_3d: true
+    elevation_source: elevation  # Specify which source contains elevation data
+
+# Custom style for terrain rendering
+styles:
+    terrain-3d:
+        base: raster
+        lighting: false
+        draw: { tile_edges: false }
+        shaders:
+            defines:
+                TANGRAM_VERTEX_RASTERS: true
+                TANGRAM_RASTER_PRECISION: 'highp'
+            blocks:
+                position: |
+                    #ifdef TANGRAM_TERRAIN_3D
+                    #ifdef TANGRAM_RASTER_STYLE
+                    // Offset for proxy levels to prevent terrain poking through
+                    proxy *= 48.0;
+                    #endif
+                    // Sample elevation from raster
+                    vec4 h = sampleRaster(1);
+                    // Decode Mapzen Terrarium format: (R*256 + G + B/256) - 32768
+                    float elev3d = max(0., (h.r*256. + h.g + h.b/256.)*255. - 32768.);
+                    position.z += elev3d;
+                    v_world_position.z += elev3d;
+                    #endif
+
+# Optional lighting for more realistic 3D effect
+lights:
+    light1: { type: directional, direction: [0, 0, -1], diffuse: 0.30, ambient: 0.25 }
+    light2: { type: directional, direction: [1, -1, -1], diffuse: 0.30, ambient: 0.25 }
+
+# Perspective camera for 3D viewing
+cameras:
+    perspective-camera:
+        position: [-122.434, 37.777, 10.9]  # [longitude, latitude, zoom]
+        type: perspective
+        fov: 45  # Field of view in degrees
+        max_tilt: [[2, 0], [16, 90]]  # Allow tilting based on zoom level
+
+layers:
+    # Render satellite imagery with 3D terrain
+    earth:
+        data: { source: satellite }
+        draw:
+            terrain-3d:
+                color: white
+                order: 0
+
+    # Optional: Render vector features on top of terrain
+    # (Uncomment if using basemap source)
+    # roads:
+    #     data: { source: basemap, layer: transportation }
+    #     filter: { $zoom: { min: 10 } }
+    #     draw:
+    #         lines:
+    #             color: '#888'
+    #             width: 2px
+    #             order: 100
+
+# Notes:
+# - Ensure MBTiles files exist at the specified paths before loading this scene
+# - MBTiles files can be created using tools like tippecanoe, mb-util, or GDAL
+# - For caching online tiles to MBTiles, see example-raster-transparency.yaml
+# - Elevation encoding: Terrarium format stores height in meters as RGB values
+# - For optimal performance, use appropriate max_zoom values for your tile sets
