@@ -44,6 +44,10 @@ global:
     # terrain_3d_mixin not used in this demo
     terrain_3d_mixin: ''
 
+    # --- demo feature flags ---
+    show_land_polygons: true   # toggled by 3D Terrain example
+    selected_osm_id: ""        # set by Selection Highlighting example
+
 scene:
     background:
         color: '#E8E0D8'

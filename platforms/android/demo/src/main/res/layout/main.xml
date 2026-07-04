@@ -1,27 +1,26 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:focusableInTouchMode="true"
     tools:context=".MainActivity">
 
-    <com.styluslabs.tangram.android.PresetSelectionTextView
-        android:id="@+id/sceneSelector"
+    <!-- Map fills the entire screen -->
+    <com.styluslabs.tangram.MapView
+        android:id="@+id/map"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
-        android:imeOptions="actionGo"
-        android:completionThreshold="1"
-        android:inputType="textUri"
-        android:selectAllOnFocus="true"/>
+        android:layout_height="match_parent"/>
 
-    <!-- Control bar: hillshade controls (row 1) + Examples button (row 2) -->
+    <!-- Control bar overlaid at the bottom -->
     <LinearLayout
         android:id="@+id/controlBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
+        android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:padding="4dp"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         android:background="#CC000000">
 
         <!-- Row 1: Hillshade demo controls -->
@@ -33,53 +32,90 @@
             <!-- Cycles: Slope: OFF → Slope Angle → Custom Slope → OFF -->
             <Button
                 android:id="@+id/btnSlope"
+                style="@style/Widget.AppCompat.Button.Borderless"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_weight="1"
+                android:layout_marginEnd="4dp"
                 android:text="Slope: OFF"
+                android:textColor="#FFFFFF"
                 android:textSize="11sp"
-                android:padding="6dp" />
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
 
-            <!-- Adds/removes ArcGIS satellite overlay from mapsources.default.yaml -->
+            <!-- Adds/removes ArcGIS satellite overlay -->
             <Button
                 android:id="@+id/btnLayer"
+                style="@style/Widget.AppCompat.Button.Borderless"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
                 android:text="Satellite: OFF"
+                android:textColor="#FFFFFF"
                 android:textSize="11sp"
-                android:padding="6dp" />
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
 
-            <!-- Toggles contour lines; reads metric_units from config.default.yaml -->
+            <!-- Toggles contour lines -->
             <Button
                 android:id="@+id/btnContours"
+                style="@style/Widget.AppCompat.Button.Borderless"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_weight="1"
+                android:layout_marginStart="4dp"
                 android:text="Contours: ON"
+                android:textColor="#FFFFFF"
                 android:textSize="11sp"
-                android:padding="6dp" />
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
 
         </LinearLayout>
 
-        <!-- Row 2: Examples panel (mirrors glfwApp showExamplesGUI) -->
-        <Button
-            android:id="@+id/btnExamples"
+        <!-- Spacer between rows -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="6dp"/>
+
+        <!-- Row 2: Scene picker + Examples -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="⚙ Examples"
-            android:textSize="11sp"
-            android:padding="6dp" />
+            android:orientation="horizontal">
+
+            <!-- Scene selector -->
+            <Button
+                android:id="@+id/btnScene"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="🗺 Scene"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
+
+            <!-- Examples panel -->
+            <Button
+                android:id="@+id/btnExamples"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="⚙ Examples"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
+
+        </LinearLayout>
 
     </LinearLayout>
 
-    <com.styluslabs.tangram.MapView
-        android:id="@+id/map"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/sceneSelector"
-        android:layout_above="@+id/controlBar">
+</FrameLayout>
 
-    </com.styluslabs.tangram.MapView>
-
-</RelativeLayout>

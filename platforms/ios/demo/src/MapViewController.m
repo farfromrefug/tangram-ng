@@ -23,6 +23,9 @@
 // Hillshade demo scene — imports hillshade.yaml, slope-angle.yaml, custom-slope-shading.yaml
 static NSString * const kSceneHillshadeDemo = @"asset:///scene-hillshade-demo.yaml";
 
+// Available preset scenes (mirrors Android SCENE_PRESETS array)
+static NSArray<NSString *> *kScenePresets;
+
 // ---- config.default.yaml values used in this demo ----
 static const BOOL  kConfigMetricUnits = YES;
 static const float kConfigViewZoom    = 10.f;
@@ -65,10 +68,12 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
 @property (strong, nonatomic) UIButton *btnSlope;
 @property (strong, nonatomic) UIButton *btnLayer;
 @property (strong, nonatomic) UIButton *btnContours;
+@property (strong, nonatomic) UIButton *btnScene;
 @property (strong, nonatomic) UIButton *btnExamples;
 @property (strong, nonatomic) CLLocationManager *locationManager;
 
 - (void)addControlButtons;
+- (UIButton *)makeControlButtonWithTitle:(NSString *)title;
 
 // Hillshade
 - (void)toggleSlope;
@@ -77,6 +82,9 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
 - (NSArray<TGSceneUpdate *> *)buildSceneUpdates;
 - (void)updateButtonLabels;
 - (NSString *)slopeModeLabel;
+
+// Scene picker
+- (void)showScenePicker;
 
 // Examples
 - (void)showExamplesMenu;
@@ -98,6 +106,14 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+
+    // Initialise preset scene list
+    kScenePresets = @[
+        kSceneHillshadeDemo,
+        @"asset:///scene.yaml",
+        @"asset:///scene3d.yaml",
+        @"asset:///scene-pmtiles.yaml",
+    ];
 
     _slopeMode              = SlopeModeOff;
     _satelliteLayerEnabled  = NO;
@@ -153,84 +169,101 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
 
 #pragma mark - Control Buttons
 
+/** Creates a styled control button with a semi-transparent rounded background. */
+- (UIButton *)makeControlButtonWithTitle:(NSString *)title
+{
+    UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+    btn.translatesAutoresizingMaskIntoConstraints = NO;
+    [btn setTitle:title forState:UIControlStateNormal];
+    [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [btn setTitleColor:[[UIColor whiteColor] colorWithAlphaComponent:0.5]
+              forState:UIControlStateHighlighted];
+    btn.titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
+    btn.titleLabel.adjustsFontSizeToFitWidth = YES;
+    btn.titleLabel.minimumScaleFactor = 0.8;
+    btn.backgroundColor = [UIColor colorWithWhite:1 alpha:0.15];
+    btn.layer.cornerRadius = 8;
+    btn.layer.borderWidth  = 0.5;
+    btn.layer.borderColor  = [UIColor colorWithWhite:1 alpha:0.3].CGColor;
+    btn.contentEdgeInsets  = UIEdgeInsetsMake(4, 8, 4, 8);
+    return btn;
+}
+
 - (void)addControlButtons
 {
+    // Semi-transparent dark bar anchored to the bottom of the view (including safe area)
     UIView *controlBar = [[UIView alloc] init];
-    controlBar.backgroundColor = [UIColor colorWithWhite:0 alpha:0.7];
+    controlBar.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.05 alpha:0.82];
     controlBar.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:controlBar];
 
     // ---- Row 1: hillshade controls ----
 
-    // Slope toggle
-    self.btnSlope = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.btnSlope.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.btnSlope setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.btnSlope.titleLabel.font = [UIFont systemFontOfSize:12];
-    [self.btnSlope addTarget:self action:@selector(toggleSlope)
-            forControlEvents:UIControlEventTouchUpInside];
-    [controlBar addSubview:self.btnSlope];
+    self.btnSlope    = [self makeControlButtonWithTitle:@""];
+    self.btnLayer    = [self makeControlButtonWithTitle:@""];
+    self.btnContours = [self makeControlButtonWithTitle:@""];
 
-    // Satellite layer toggle
-    self.btnLayer = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.btnLayer.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.btnLayer setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.btnLayer.titleLabel.font = [UIFont systemFontOfSize:12];
-    [self.btnLayer addTarget:self action:@selector(toggleSatelliteLayer)
-            forControlEvents:UIControlEventTouchUpInside];
-    [controlBar addSubview:self.btnLayer];
-
-    // Contours toggle
-    self.btnContours = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.btnContours.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.btnContours setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.btnContours.titleLabel.font = [UIFont systemFontOfSize:12];
+    [self.btnSlope    addTarget:self action:@selector(toggleSlope)
+               forControlEvents:UIControlEventTouchUpInside];
+    [self.btnLayer    addTarget:self action:@selector(toggleSatelliteLayer)
+               forControlEvents:UIControlEventTouchUpInside];
     [self.btnContours addTarget:self action:@selector(toggleContours)
                forControlEvents:UIControlEventTouchUpInside];
-    [controlBar addSubview:self.btnContours];
 
-    // ---- Row 2: examples button ----
-    self.btnExamples = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.btnExamples.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.btnExamples setTitle:@"⚙ Examples" forState:UIControlStateNormal];
-    [self.btnExamples setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.btnExamples.titleLabel.font = [UIFont systemFontOfSize:12];
+    // ---- Row 2: scene picker + examples button ----
+    self.btnScene    = [self makeControlButtonWithTitle:@"🗺 Scene"];
+    self.btnExamples = [self makeControlButtonWithTitle:@"⚙ Examples"];
+
+    [self.btnScene    addTarget:self action:@selector(showScenePicker)
+               forControlEvents:UIControlEventTouchUpInside];
     [self.btnExamples addTarget:self action:@selector(showExamplesMenu)
                forControlEvents:UIControlEventTouchUpInside];
-    [controlBar addSubview:self.btnExamples];
+
+    for (UIButton *btn in @[self.btnSlope, self.btnLayer, self.btnContours,
+                            self.btnScene, self.btnExamples]) {
+        [controlBar addSubview:btn];
+    }
 
     [self updateButtonLabels];
 
+    // Horizontal stack views for each row
+    UIStackView *row1 = [[UIStackView alloc]
+        initWithArrangedSubviews:@[self.btnSlope, self.btnLayer, self.btnContours]];
+    row1.axis         = UILayoutConstraintAxisHorizontal;
+    row1.distribution = UIStackViewDistributionFillEqually;
+    row1.spacing      = 6;
+    row1.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIStackView *row2 = [[UIStackView alloc]
+        initWithArrangedSubviews:@[self.btnScene, self.btnExamples]];
+    row2.axis         = UILayoutConstraintAxisHorizontal;
+    row2.distribution = UIStackViewDistributionFillEqually;
+    row2.spacing      = 6;
+    row2.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[row1, row2]];
+    stack.axis         = UILayoutConstraintAxisVertical;
+    stack.distribution = UIStackViewDistributionFillEqually;
+    stack.spacing      = 6;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [controlBar addSubview:stack];
+
+    UILayoutGuide *safeArea = self.view.safeAreaLayoutGuide;
+
     [NSLayoutConstraint activateConstraints:@[
+        // Bar anchors to the screen bottom, respects safe area on top edge
         [controlBar.leadingAnchor  constraintEqualToAnchor:self.view.leadingAnchor],
         [controlBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [controlBar.bottomAnchor   constraintEqualToAnchor:self.view.bottomAnchor],
-        [controlBar.heightAnchor   constraintEqualToConstant:96],
+        [controlBar.topAnchor      constraintEqualToAnchor:safeArea.bottomAnchor
+                                                  constant:-108],
 
-        // Row 1
-        [self.btnSlope.leadingAnchor  constraintEqualToAnchor:controlBar.leadingAnchor],
-        [self.btnSlope.topAnchor      constraintEqualToAnchor:controlBar.topAnchor],
-        [self.btnSlope.heightAnchor   constraintEqualToConstant:48],
-        [self.btnSlope.widthAnchor    constraintEqualToAnchor:controlBar.widthAnchor
-                                                   multiplier:1.0/3.0],
-
-        [self.btnLayer.centerXAnchor  constraintEqualToAnchor:controlBar.centerXAnchor],
-        [self.btnLayer.topAnchor      constraintEqualToAnchor:controlBar.topAnchor],
-        [self.btnLayer.heightAnchor   constraintEqualToConstant:48],
-        [self.btnLayer.widthAnchor    constraintEqualToAnchor:controlBar.widthAnchor
-                                                   multiplier:1.0/3.0],
-
-        [self.btnContours.trailingAnchor constraintEqualToAnchor:controlBar.trailingAnchor],
-        [self.btnContours.topAnchor      constraintEqualToAnchor:controlBar.topAnchor],
-        [self.btnContours.heightAnchor   constraintEqualToConstant:48],
-        [self.btnContours.widthAnchor    constraintEqualToAnchor:controlBar.widthAnchor
-                                                      multiplier:1.0/3.0],
-
-        // Row 2
-        [self.btnExamples.leadingAnchor  constraintEqualToAnchor:controlBar.leadingAnchor],
-        [self.btnExamples.trailingAnchor constraintEqualToAnchor:controlBar.trailingAnchor],
-        [self.btnExamples.bottomAnchor   constraintEqualToAnchor:controlBar.bottomAnchor],
-        [self.btnExamples.heightAnchor   constraintEqualToConstant:48],
+        // Stack fills the safe-area portion of the bar
+        [stack.leadingAnchor   constraintEqualToAnchor:controlBar.leadingAnchor  constant:8],
+        [stack.trailingAnchor  constraintEqualToAnchor:controlBar.trailingAnchor constant:-8],
+        [stack.topAnchor       constraintEqualToAnchor:safeArea.bottomAnchor     constant:-108],
+        [stack.bottomAnchor    constraintEqualToAnchor:safeArea.bottomAnchor     constant:-6],
     ]];
 }
 
@@ -324,6 +357,43 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
     [self.btnContours setTitle:[NSString stringWithFormat:@"Contours: %@",
                                 _contoursEnabled ? @"ON" : @"OFF"]
                       forState:UIControlStateNormal];
+}
+
+#pragma mark - Scene Picker
+
+- (void)showScenePicker
+{
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:@"Select Scene"
+                         message:nil
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+
+    __weak __typeof(self) weakSelf = self;
+
+    for (NSString *url in kScenePresets) {
+        // Show just the filename as the label
+        NSString *label = [url lastPathComponent];
+        [alert addAction:[UIAlertAction actionWithTitle:label
+            style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+                TGMapView *mapView = (TGMapView *)weakSelf.view;
+                // Reset hillshade-specific state
+                weakSelf->_slopeMode           = SlopeModeOff;
+                weakSelf->_satelliteLayerEnabled = NO;
+                weakSelf->_contoursEnabled       = YES;
+                [weakSelf updateButtonLabels];
+                NSLog(@"Loading scene: %@", url);
+                [mapView loadSceneAsyncFromURL:[NSURL URLWithString:url]
+                                   withUpdates:nil];
+            }]];
+    }
+
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
+        style:UIAlertActionStyleCancel handler:nil]];
+
+    alert.popoverPresentationController.sourceView = self.btnScene;
+    alert.popoverPresentationController.sourceRect = self.btnScene.bounds;
+
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 #pragma mark - TGMapViewDelegate
@@ -902,21 +972,14 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
 {
     _terrain3dEnabled = !_terrain3dEnabled;
     TGMapView *mapView = (TGMapView *)self.view;
-    if (_terrain3dEnabled) {
-        [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                           withUpdates:@[
-            [[TGSceneUpdate alloc] initWithPath:@"import"
-                                          value:@"scenes/terrain-3d.yaml"],
-            [[TGSceneUpdate alloc] initWithPath:@"global.show_land_polygons"
-                                          value:@"false"],
-        ]];
-    } else {
-        [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                           withUpdates:@[
-            [[TGSceneUpdate alloc] initWithPath:@"global.show_land_polygons"
-                                          value:@"true"],
-        ]];
-    }
+    // Toggle global.show_land_polygons to hide land fill when 3D terrain is active,
+    // and toggle global.terrain_3d_mixin to enable/disable the terrain-3d style mixin.
+    [mapView updateGlobals:@[
+        [[TGSceneUpdate alloc] initWithPath:@"global.show_land_polygons"
+                                      value:_terrain3dEnabled ? @"false" : @"true"],
+        [[TGSceneUpdate alloc] initWithPath:@"global.terrain_3d_mixin"
+                                      value:_terrain3dEnabled ? @"terrain-3d" : @""],
+    ] rebuildTiles:YES];
     NSLog(@"3D terrain: %@", _terrain3dEnabled ? @"ON" : @"OFF");
 }
 
@@ -926,58 +989,51 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
 
 - (void)showCustomShaderDialog
 {
+    // The base scene (scene-hillshade-demo.yaml) already imports hillshade.yaml,
+    // slope-angle.yaml and custom-slope-shading.yaml, and binds their shader uniforms
+    // to globals (global.slope_angle_opacity / global.custom_slope_opacity).
+    // We can therefore toggle all overlays live via updateGlobals — no scene reload needed.
     UIAlertController *alert = [UIAlertController
         alertControllerWithTitle:@"Custom Shader Rendering"
-                         message:@"Activate slope/hillshade overlays via SceneUpdates."
+                         message:@"Activate slope/hillshade overlays via globals."
                   preferredStyle:UIAlertControllerStyleActionSheet];
 
     __weak __typeof(self) weakSelf = self;
+    TGMapView *mapView = (TGMapView *)self.view;
 
     [alert addAction:[UIAlertAction actionWithTitle:@"Enable Hillshade"
         style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            TGMapView *mapView = (TGMapView *)weakSelf.view;
-            [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                               withUpdates:@[
-                [[TGSceneUpdate alloc] initWithPath:@"import"
-                                              value:@"scenes/hillshade.yaml"],
-                [[TGSceneUpdate alloc] initWithPath:@"global.show_hypsometric"
-                                              value:@"true"],
-            ]];
+            [mapView updateGlobals:@[
+                [[TGSceneUpdate alloc] initWithPath:@"global.show_hypsometric"    value:@"true"],
+                [[TGSceneUpdate alloc] initWithPath:@"global.slope_angle_opacity"  value:@"0.0"],
+                [[TGSceneUpdate alloc] initWithPath:@"global.custom_slope_opacity" value:@"0.0"],
+            ] rebuildTiles:YES];
+            (void)weakSelf;
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Enable Slope Angle"
         style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            TGMapView *mapView = (TGMapView *)weakSelf.view;
-            [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                               withUpdates:@[
-                [[TGSceneUpdate alloc] initWithPath:@"import"
-                                              value:@"scenes/slope-angle.yaml"],
-                [[TGSceneUpdate alloc] initWithPath:@"hillshade.shaders.uniforms.u_slope_angle_opacity"
-                                              value:@"0.75"],
-            ]];
+            [mapView updateGlobals:@[
+                [[TGSceneUpdate alloc] initWithPath:@"global.slope_angle_opacity"  value:@"0.75"],
+                [[TGSceneUpdate alloc] initWithPath:@"global.custom_slope_opacity" value:@"0.0"],
+            ] rebuildTiles:YES];
+            (void)weakSelf;
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Enable Custom Slope"
         style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            TGMapView *mapView = (TGMapView *)weakSelf.view;
-            [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                               withUpdates:@[
-                [[TGSceneUpdate alloc] initWithPath:@"import"
-                                              value:@"scenes/custom-slope-shading.yaml"],
-                [[TGSceneUpdate alloc] initWithPath:@"hillshade.shaders.uniforms.u_custom_slope_opacity"
-                                              value:@"0.75"],
-            ]];
+            [mapView updateGlobals:@[
+                [[TGSceneUpdate alloc] initWithPath:@"global.slope_angle_opacity"  value:@"0.0"],
+                [[TGSceneUpdate alloc] initWithPath:@"global.custom_slope_opacity" value:@"0.75"],
+            ] rebuildTiles:YES];
+            (void)weakSelf;
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Disable All Overlays"
         style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-            TGMapView *mapView = (TGMapView *)weakSelf.view;
-            [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                               withUpdates:@[
-                [[TGSceneUpdate alloc] initWithPath:@"global.show_hypsometric"
-                                              value:@"false"],
-                [[TGSceneUpdate alloc] initWithPath:@"hillshade.shaders.uniforms.u_slope_angle_opacity"
-                                              value:@"0.0"],
-                [[TGSceneUpdate alloc] initWithPath:@"hillshade.shaders.uniforms.u_custom_slope_opacity"
-                                              value:@"0.0"],
-            ]];
+            [mapView updateGlobals:@[
+                [[TGSceneUpdate alloc] initWithPath:@"global.show_hypsometric"    value:@"false"],
+                [[TGSceneUpdate alloc] initWithPath:@"global.slope_angle_opacity"  value:@"0.0"],
+                [[TGSceneUpdate alloc] initWithPath:@"global.custom_slope_opacity" value:@"0.0"],
+            ] rebuildTiles:YES];
+            (void)weakSelf;
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Close"
         style:UIAlertActionStyleCancel handler:nil]];
@@ -1011,21 +1067,19 @@ typedef NS_ENUM(NSInteger, SlopeMode) {
         style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
             weakSelf->_selectedOsmId = alert.textFields[0].text ?: @"";
             TGMapView *mapView = (TGMapView *)weakSelf.view;
-            [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                               withUpdates:@[
+            [mapView updateGlobals:@[
                 [[TGSceneUpdate alloc] initWithPath:@"global.selected_osm_id"
                                               value:weakSelf->_selectedOsmId],
-            ]];
+            ] rebuildTiles:YES];
             NSLog(@"Highlight OSM ID: %@", weakSelf->_selectedOsmId);
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Clear"
         style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) {
             weakSelf->_selectedOsmId = @"";
             TGMapView *mapView = (TGMapView *)weakSelf.view;
-            [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
-                               withUpdates:@[
+            [mapView updateGlobals:@[
                 [[TGSceneUpdate alloc] initWithPath:@"global.selected_osm_id" value:@""],
-            ]];
+            ] rebuildTiles:YES];
             NSLog(@"Selection highlight cleared");
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Close"

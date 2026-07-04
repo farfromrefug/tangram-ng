@@ -118,6 +118,9 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
 
     private ArrayList<SceneUpdate> sceneUpdates = new ArrayList<>();
 
+    /** URL of the currently loaded scene. */
+    private String currentSceneUrl = SCENE_HILLSHADE_DEMO;
+
     MapController map;
     MapView view;
     MapData mapData;
@@ -125,8 +128,6 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
     Button btnSlope;
     Button btnLayer;
     Button btnContours;
-
-    PresetSelectionTextView sceneSelector;
 
     boolean showTileInfo = false;
 
@@ -173,21 +174,6 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main);
 
-        sceneSelector = (PresetSelectionTextView)findViewById(R.id.sceneSelector);
-        sceneSelector.setText(SCENE_PRESETS[0]);
-        sceneSelector.setPresetStrings(Arrays.asList(SCENE_PRESETS));
-        sceneSelector.setOnSelectionListener(new PresetSelectionTextView.OnSelectionListener() {
-            @Override
-            public void onSelection(String selection) {
-                // Reset demo state when scene is manually switched
-                slopeMode = 0;
-                satelliteLayerEnabled = false;
-                contoursEnabled = true;
-                updateButtonLabels();
-                map.loadSceneFile(selection, sceneUpdates);
-            }
-        });
-
         btnSlope = (Button)findViewById(R.id.btnSlope);
         btnLayer = (Button)findViewById(R.id.btnLayer);
         btnContours = (Button)findViewById(R.id.btnContours);
@@ -200,6 +186,11 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
         });
         btnContours.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { toggleContours(); }
+        });
+
+        Button btnScene = (Button)findViewById(R.id.btnScene);
+        btnScene.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { showScenePickerDialog(); }
         });
 
         Button btnExamples = (Button)findViewById(R.id.btnExamples);
@@ -336,8 +327,34 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
     // -------------------------------------------------------------------------
 
     private String getCurrentSceneUrl() {
-        String url = sceneSelector.getCurrentString();
-        return (url != null && !url.isEmpty()) ? url : SCENE_HILLSHADE_DEMO;
+        return currentSceneUrl;
+    }
+
+    /** Shows a dialog to pick a preset scene, then reloads the map. */
+    private void showScenePickerDialog() {
+        // Build display labels by extracting the filename
+        final String[] labels = new String[SCENE_PRESETS.length];
+        for (int i = 0; i < SCENE_PRESETS.length; i++) {
+            String url = SCENE_PRESETS[i];
+            labels[i] = url.substring(url.lastIndexOf('/') + 1);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Select Scene")
+                .setItems(labels, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        currentSceneUrl = SCENE_PRESETS[which];
+                        // Reset hillshade-specific state
+                        slopeMode = 0;
+                        satelliteLayerEnabled = false;
+                        contoursEnabled = true;
+                        updateButtonLabels();
+                        Log.d(TAG, "Loading scene: " + currentSceneUrl);
+                        map.loadSceneFileAsync(currentSceneUrl, null);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private String getSlopeModeLabel() {
@@ -910,16 +927,12 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
 
     private void toggleTerrain3d() {
         terrain3dEnabled = !terrain3dEnabled;
-        if (terrain3dEnabled) {
-            map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
-                    new SceneUpdate("import", "scenes/terrain-3d.yaml"),
-                    new SceneUpdate("global.show_land_polygons", "false")
-            ));
-        } else {
-            map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
-                    new SceneUpdate("global.show_land_polygons", "true")
-            ));
-        }
+        // Toggle global.show_land_polygons to hide land fill when 3D terrain is active,
+        // and toggle global.terrain_3d_mixin to enable/disable the terrain-3d style mixin.
+        map.updateGlobals(Arrays.asList(
+                new SceneUpdate("global.show_land_polygons", terrain3dEnabled ? "false" : "true"),
+                new SceneUpdate("global.terrain_3d_mixin", terrain3dEnabled ? "terrain-3d" : "")
+        ), /* rebuildTiles= */ true);
         Log.d(TAG, "3D terrain: " + terrain3dEnabled);
     }
 
@@ -928,6 +941,10 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
     // -------------------------------------------------------------------------
 
     private void showCustomShaderDialog() {
+        // The base scene (scene-hillshade-demo.yaml) already imports hillshade.yaml,
+        // slope-angle.yaml and custom-slope-shading.yaml, and binds their shader uniforms
+        // to globals (global.slope_angle_opacity / global.custom_slope_opacity).
+        // We can therefore toggle all overlays live via updateGlobals — no scene reload needed.
         final String[] items = {
                 "Enable Hillshade",
                 "Enable Slope Angle",
@@ -941,29 +958,30 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
                     public void onClick(DialogInterface dialog, int which) {
                         switch (which) {
                             case 0:
-                                map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
-                                        new SceneUpdate("import", "scenes/hillshade.yaml"),
-                                        new SceneUpdate("global.show_hypsometric", "true")
-                                ));
+                                map.updateGlobals(Arrays.asList(
+                                        new SceneUpdate("global.show_hypsometric",   "true"),
+                                        new SceneUpdate("global.slope_angle_opacity",  "0.0"),
+                                        new SceneUpdate("global.custom_slope_opacity", "0.0")
+                                ), /* rebuildTiles= */ true);
                                 break;
                             case 1:
-                                map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
-                                        new SceneUpdate("import", "scenes/slope-angle.yaml"),
-                                        new SceneUpdate("hillshade.shaders.uniforms.u_slope_angle_opacity", "0.75")
-                                ));
+                                map.updateGlobals(Arrays.asList(
+                                        new SceneUpdate("global.slope_angle_opacity",  "0.75"),
+                                        new SceneUpdate("global.custom_slope_opacity", "0.0")
+                                ), /* rebuildTiles= */ true);
                                 break;
                             case 2:
-                                map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
-                                        new SceneUpdate("import", "scenes/custom-slope-shading.yaml"),
-                                        new SceneUpdate("hillshade.shaders.uniforms.u_custom_slope_opacity", "0.75")
-                                ));
+                                map.updateGlobals(Arrays.asList(
+                                        new SceneUpdate("global.slope_angle_opacity",  "0.0"),
+                                        new SceneUpdate("global.custom_slope_opacity", "0.75")
+                                ), /* rebuildTiles= */ true);
                                 break;
                             case 3:
-                                map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
-                                        new SceneUpdate("global.show_hypsometric", "false"),
-                                        new SceneUpdate("hillshade.shaders.uniforms.u_slope_angle_opacity", "0.0"),
-                                        new SceneUpdate("hillshade.shaders.uniforms.u_custom_slope_opacity", "0.0")
-                                ));
+                                map.updateGlobals(Arrays.asList(
+                                        new SceneUpdate("global.show_hypsometric",    "false"),
+                                        new SceneUpdate("global.slope_angle_opacity",  "0.0"),
+                                        new SceneUpdate("global.custom_slope_opacity", "0.0")
+                                ), /* rebuildTiles= */ true);
                                 break;
                         }
                     }
@@ -998,9 +1016,9 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         selectedOsmId = etOsmId.getText().toString().trim();
-                        map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
+                        map.updateGlobals(Arrays.asList(
                                 new SceneUpdate("global.selected_osm_id", selectedOsmId)
-                        ));
+                        ), /* rebuildTiles= */ true);
                         Log.d(TAG, "Highlight OSM ID: " + selectedOsmId);
                     }
                 })
@@ -1009,9 +1027,9 @@ public class MainActivity extends AppCompatActivity implements MapController.Sce
                     public void onClick(DialogInterface dialog, int which) {
                         selectedOsmId = "";
                         etOsmId.setText("");
-                        map.loadSceneFileAsync(getCurrentSceneUrl(), Arrays.asList(
+                        map.updateGlobals(Arrays.asList(
                                 new SceneUpdate("global.selected_osm_id", "")
-                        ));
+                        ), /* rebuildTiles= */ true);
                         Log.d(TAG, "Selection highlight cleared");
                     }
                 })
