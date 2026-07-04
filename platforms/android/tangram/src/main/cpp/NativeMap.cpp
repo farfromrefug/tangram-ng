@@ -572,11 +572,42 @@ jboolean NATIVE_METHOD(markerSetDrawOrder)(JNIEnv* env, jobject obj, jlong marke
     return static_cast<jboolean>(result);
 }
 
+jboolean NATIVE_METHOD(markerSetProperties)(JNIEnv* env, jobject obj, jlong markerID,
+                                            jobjectArray javaProperties) {
+    auto* map = androidMapFromJava(env, obj);
+
+    int nProperties = (javaProperties == nullptr) ? 0 : env->GetArrayLength(javaProperties) / 2;
+    Properties properties;
+    for (int i = 0; i < nProperties; ++i) {
+        auto javaKey = (jstring) (env->GetObjectArrayElement(javaProperties, 2 * i));
+        auto javaValue = (jstring) (env->GetObjectArrayElement(javaProperties, 2 * i + 1));
+        auto key = JniHelpers::stringFromJavaString(env, javaKey);
+        auto value = JniHelpers::stringFromJavaString(env, javaValue);
+        properties.set(key, value);
+        env->DeleteLocalRef(javaKey);
+        env->DeleteLocalRef(javaValue);
+    }
+    auto result = map->markerSetProperties(static_cast<unsigned int>(markerID), std::move(properties));
+    return static_cast<jboolean>(result);
+}
+
+jboolean NATIVE_METHOD(markerSetAlternate)(JNIEnv* env, jobject obj, jlong markerID, jlong altMarkerID) {
+    auto* map = androidMapFromJava(env, obj);
+    auto result = map->markerSetAlternate(static_cast<unsigned int>(markerID),
+                                          static_cast<unsigned int>(altMarkerID));
+    return static_cast<jboolean>(result);
+}
+
 void NATIVE_METHOD(markerRemoveAll)(JNIEnv* env, jobject obj) {
     auto* map = androidMapFromJava(env, obj);
     map->markerRemoveAll();
 }
 
+void NATIVE_METHOD(updateGlobals)(JNIEnv* env, jobject obj, jobjectArray updateStrings, jboolean rebuildTiles) {
+    auto* map = androidMapFromJava(env, obj);
+    auto sceneUpdates = unpackSceneUpdates(env, updateStrings);
+    map->updateGlobals(sceneUpdates, rebuildTiles);
+}
 
 void NATIVE_METHOD(setDebugFlag)(JNIEnv* env, jobject obj, jint flag, jboolean on) {
     Tangram::setDebugFlag(static_cast<Tangram::DebugFlags>(flag), on);

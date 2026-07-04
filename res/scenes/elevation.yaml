@@ -1,0 +1,38 @@
+# elevation.yaml
+# From: https://github.com/farfromrefug/ascendmaps/tree/abd695a8f13e7c0cfffc96b4daf4f19a336cceda/assets/scenes
+
+sources:
+    elevation:
+        type: Raster
+        filtering: nearest
+        url: https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer/tile/{z}/{y}/{x}
+        max_zoom: 16
+        cache: elevation
+        # 2 years
+        max_age: 63072000
+        attribution: |
+            Maxar, Airbus DS, USGS, NGA, NASA, CGIAR, GEBCO, N Robinson, NCEAS, NLS, OS, NMA, Geodatastyrelsen and the GIS User Community
+
+
+styles:
+    get-elevation:
+        raster: custom
+        shaders:
+            defines:
+                ELEVATION_INDEX: 0
+                ELEVATION_FLOAT_TEX: true
+                # sampler2D default is lowp!
+                TANGRAM_RASTER_PRECISION: 'highp'
+            blocks:
+                global: |
+                    #if defined(TANGRAM_FRAGMENT_SHADER) || defined(TANGRAM_VERTEX_RASTERS)
+                    float getElevationAt(vec2 uv) {  // in meters
+                        vec4 h = texture2D(u_rasters[ELEVATION_INDEX], uv);
+                    #ifdef ELEVATION_FLOAT_TEX
+                        return h.r;
+                    #else
+                        return (h.r*256. + h.g + h.b/256.)*255. - 32768.;  // mapzen terrarium
+                    #endif
+                    }
+                    float getElevation() { return getElevationAt(currentRasterUV(ELEVATION_INDEX)); }
+                    #endif

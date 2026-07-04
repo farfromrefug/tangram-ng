@@ -335,6 +335,32 @@ public class MapController {
     }
 
     /**
+     * Update global variables in the current scene without triggering a full scene reload.
+     * This is the equivalent of {@code map->updateGlobals(...)} in the C++ API. Use this for
+     * lightweight runtime changes to scene globals such as shader uniforms, style toggles, and
+     * feature-highlight IDs.
+     * @param sceneUpdates List of {@code SceneUpdate} targeting global paths (e.g. {@code "global.selected_osm_id"})
+     * @param rebuildTiles If {@code true}, affected tiles will be rebuilt to reflect the new values.
+     *                     Pass {@code false} when the update only affects JS-evaluated draw rules that
+     *                     run per-frame and do not require a tile rebuild.
+     */
+    public void updateGlobals(@NonNull final List<SceneUpdate> sceneUpdates, final boolean rebuildTiles) {
+        final String[] updateStrings = bundleSceneUpdates(sceneUpdates);
+        nativeMap.updateGlobals(updateStrings, rebuildTiles);
+        requestRender();
+    }
+
+    /**
+     * Update global variables in the current scene without triggering a full scene reload.
+     * Tiles will be rebuilt to reflect the new values. To skip tile rebuilding pass
+     * {@code false} to {@link #updateGlobals(List, boolean)}.
+     * @param sceneUpdates List of {@code SceneUpdate} targeting global paths
+     */
+    public void updateGlobals(@NonNull final List<SceneUpdate> sceneUpdates) {
+        updateGlobals(sceneUpdates, true);
+    }
+
+    /**
      * Set the camera position of the map view
      * @param update CameraUpdate to modify current camera position
      */
@@ -1069,6 +1095,23 @@ public class MapController {
     boolean setMarkerDrawOrder(final long markerId, final int drawOrder) {
         checkId(markerId);
         return nativeMap.markerSetDrawOrder(markerId, drawOrder);
+    }
+
+    boolean setMarkerProperties(final long markerId, @NonNull final Map<String, String> properties) {
+        checkId(markerId);
+        final String[] propertyStrings = new String[properties.size() * 2];
+        int index = 0;
+        for (final Map.Entry<String, String> entry : properties.entrySet()) {
+            propertyStrings[index++] = entry.getKey();
+            propertyStrings[index++] = entry.getValue();
+        }
+        return nativeMap.markerSetProperties(markerId, propertyStrings);
+    }
+
+    boolean setMarkerAlternate(final long markerId, final long altMarkerId) {
+        checkId(markerId);
+        checkId(altMarkerId);
+        return nativeMap.markerSetAlternate(markerId, altMarkerId);
     }
 
 

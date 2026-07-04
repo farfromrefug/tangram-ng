@@ -1,0 +1,82 @@
+# Stylus Labs Maps config
+# From: https://github.com/farfromrefug/ascendmaps/tree/abd695a8f13e7c0cfffc96b4daf4f19a336cceda/assets
+sources:
+  file: mapsources.yaml
+  last_source: stylus-bike-hike
+  elevation: ["elevation"]
+  common_imports:
+    - scenes/markers.yaml
+    #- scenes/secrets.yaml
+  list_order:
+    - stylus-osm-terrain
+    - stylus-bike-hike
+    - stylus-satellite
+    - stylus-worldcover
+    - stylus-transit
+    - enable-slope-angle
+    - enable-contours
+    - custom-slope-shading
+    - hillshade
+    - strava-all
+    - opentopomap
+    - arcgis-satellite
+    - bing-earth
+    - sentinel2-recent
+    - esa-sentinel2
+    - nasa-worldview
+    - worldcover
+    - usgs-imagery
+    - usgs-topo
+    - archived
+
+terrain_3d:
+  #enabled: true  -- missing value will trigger prompt when map is tilted
+  import: scenes/terrain-3d.yaml
+  updates:
+    global.show_land_polygons: false
+
+# use https://github.com/aosp-mirror/platform_frameworks_base/raw/de0fe2daafb769cc37ca922ffef6dbafb8c6cae2/data/fonts/DroidSansFallback.ttf because next version removes a bunch of characters
+fallback_fonts:
+  - shared/fonts/Roboto-Regular.ttf
+  - shared/fonts/DroidSansFallback.ttf
+
+storage:
+  # cache size thresholds (MB) - set to 0 for no limit
+  shrink_at: 600
+  shrink_to: 400
+  # immediately delete tiles when deleting offline map?
+  purge_offline: true
+  # max number of simultaneous download requests
+  offline_download_rate: 20
+
+view:
+  #lng: -122.434668
+  #lat: 37.776444
+  zoom: 15
+
+search:
+  min_poi_zoom: 19
+  hide_bookmarks: false
+  offline_source: stylus-osm
+
+tracks:
+  # point added to track if min_distance (m) OR min_time (sec) from last point; this sets density of points
+  min_distance: 0.5
+  min_time: 5
+  # Android leaves GPS on continuously if sample_period (sec) is less than 10 seconds
+  sample_period: 0.1
+
+metric_units: true
+
+# set global.shuffle_seed to random value each time app is run (can be used, e.g., to randomize POI priorities)
+random_shuffle_seed: true
+
+# color choices for tracks and markers; from https://colorkit.co
+colors: ["#1ABC9C", "#27AE60", "#2980B9", "#9B59B6", "#F1C40F", "#F39C12", "#D35400"]
+
+ui:
+  #show_debug: true
+  reverse_map_btns: false
+  theme: light
+  ui_scale: 0.95
+  map_scale: 0.95

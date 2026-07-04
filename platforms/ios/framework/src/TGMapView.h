@@ -151,6 +151,20 @@ TG_EXPORT
                 relativeToURL:(NSURL *)url
                   withUpdates:(nullable NSArray<TGSceneUpdate *> *)updates;
 
+/**
+ Update global variables in the current scene without triggering a full scene reload.
+
+ Use this for lightweight runtime changes such as shader uniforms, style toggles, and
+ feature-highlight globals (e.g. `global.selected_osm_id`). This is significantly faster
+ than a full scene reload because the scene graph is not rebuilt.
+
+ @param updates A list of `TGSceneUpdate` targeting `global.*` paths, or `nil`.
+ @param rebuildTiles If `YES`, affected tiles will be rebuilt to reflect the new values.
+        Pass `NO` when the update only affects per-frame JS draw-rule evaluation and
+        does not require a tile rebuild.
+ */
+- (void)updateGlobals:(nullable NSArray<TGSceneUpdate *> *)updates rebuildTiles:(BOOL)rebuildTiles;
+
 #pragma mark Delegates
 
 /**

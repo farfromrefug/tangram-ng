@@ -1,25 +1,121 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:focusableInTouchMode="true"
     tools:context=".MainActivity">
 
-    <com.styluslabs.tangram.android.PresetSelectionTextView
-        android:id="@+id/sceneSelector"
-        android:layout_width="match_parent"
-        android:layout_height="80dp"
-        android:imeOptions="actionGo"
-        android:completionThreshold="1"
-        android:inputType="textUri"
-        android:selectAllOnFocus="true"/>
-
+    <!-- Map fills the entire screen -->
     <com.styluslabs.tangram.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/sceneSelector">
+        android:layout_height="match_parent"/>
 
-    </com.styluslabs.tangram.MapView>
+    <!-- Control bar overlaid at the bottom -->
+    <LinearLayout
+        android:id="@+id/controlBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:background="#CC000000">
 
-</RelativeLayout>
+        <!-- Row 1: Hillshade demo controls -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Cycles: Slope: OFF → Slope Angle → Custom Slope → OFF -->
+            <Button
+                android:id="@+id/btnSlope"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="Slope: OFF"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
+
+            <!-- Adds/removes ArcGIS satellite overlay -->
+            <Button
+                android:id="@+id/btnLayer"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:text="Satellite: OFF"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
+
+            <!-- Toggles contour lines -->
+            <Button
+                android:id="@+id/btnContours"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="Contours: ON"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
+
+        </LinearLayout>
+
+        <!-- Spacer between rows -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="6dp"/>
+
+        <!-- Row 2: Scene picker + Examples -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Scene selector -->
+            <Button
+                android:id="@+id/btnScene"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="🗺 Scene"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
+
+            <!-- Examples panel -->
+            <Button
+                android:id="@+id/btnExamples"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="⚙ Examples"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="@drawable/btn_control"
+                android:padding="4dp"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>
+

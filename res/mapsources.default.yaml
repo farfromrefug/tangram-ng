@@ -1,0 +1,149 @@
+# Map tile sources for Tangram-ng demo
+# From: https://github.com/farfromrefug/ascendmaps/tree/abd695a8f13e7c0cfffc96b4daf4f19a336cceda/assets
+#
+# Each entry defines a named tile source with:
+#   title       - human-readable name
+#   url         - tile URL template ({z}/{x}/{y}, {z}/{y}/{x}, or {q} for quadkey)
+#   scene       - optional Tangram scene YAML to import for vector sources
+#   layer       - true if this is an overlay (not a base map)
+#   layers      - list of base source keys this overlay depends on
+#   updates     - SceneUpdate key/value pairs to apply when this source is active
+#   archived    - true to hide from default source list
+#   max_zoom    - tile zoom limit
+#   opacity_uniform - path to shader uniform controlling layer opacity
+
+stylus-osm-terrain:
+    title: Ascend OSM
+    layer: true
+    layers:
+        - hillshade
+
+stylus-satellite:
+    title: Ascend OSM + Satellite
+    layers:
+        - arcgis-satellite
+    updates:
+        global.show_polygons: false
+
+opentopomap:
+    title: OpenTopoMap
+    url: http://{s}.tile.opentopomap.org/{z}/{x}/{y}.png
+    url_subdomains: [a, b, c]
+
+osm-raster:
+    title: OpenStreetMap
+    url: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+    url_subdomains: [a, b, c]
+    archived: true
+
+strava-all:
+    title: Strava Heatmap
+    layer: true
+    archived: true
+    max_zoom: 15
+    url: 'https://strava-heatmap.tiles.freemap.sk/all/bluered/{z}/{x}/{y}.png'
+    headers:
+        Referer: 'https://www.freemap.sk/'
+        User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+
+strava-run:
+    title: Strava Heatmap (Run)
+    layer: true
+    archived: true
+    max_zoom: 15
+    url: 'https://strava-heatmap.tiles.freemap.sk/run/bluered/{z}/{x}/{y}.png'
+    headers:
+        Referer: 'https://www.freemap.sk/'
+        User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+
+strava-bike:
+    title: Strava Heatmap (Bike)
+    layer: true
+    archived: true
+    max_zoom: 15
+    url: 'https://strava-heatmap.tiles.freemap.sk/ride/bluered/{z}/{x}/{y}.png'
+    headers:
+        Referer: 'https://www.freemap.sk/'
+        User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+
+bing-earth:
+    title: Bing Satellite
+    url: http://a{s}.ortho.tiles.virtualearth.net/tiles/a{q}.JPG?g=45&mkt=en
+    url_subdomains: [0, 1, 2, 3]
+    zoom_offset: -1
+    updates:
+        application.dark_base_map: true
+
+arcgis-satellite:
+    title: ArcGIS Satellite
+    attribution: |
+        Esri, Maxar, Earthstar Geographics, and the GIS User Community
+    url: https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
+    updates:
+        application.dark_base_map: true
+
+usgs-imagery:
+    title: USGS Imagery
+    url: http://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}
+    updates:
+        application.dark_base_map: true
+
+sentinel2-recent:
+    title: Sentinel-2 Recent
+    description: Recent cloudless 10m imagery
+    url: https://planetarycomputer.microsoft.com/api/data/v1/mosaic/ee3c35fe2906b21590b2153418b89570/tiles/WebMercatorQuad/{z}/{x}/{y}@2x?assets=B04&assets=B03&assets=B02&color_formula=Gamma%20RGB%203.2%20Saturation%200.8%20Sigmoidal%20RGB%2025%200.35&nodata=0&collection=sentinel-2-l2a&format=jpeg
+    max_age: 86400
+    updates:
+        application.dark_base_map: true
+
+usgs-topo:
+    title: USGS Topo
+    url: http://basemap.nationalmap.gov/ArcGIS/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}
+
+worldcover:
+    title: ESA Worldcover
+    description: 10m landcover (2021) from Sentinel-2
+    max_zoom: 14
+    url: https://services.terrascope.be/wmts/v2?layer=WORLDCOVER_2021_MAP&style=&tilematrixset=EPSG:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/png&TileMatrix=EPSG:3857:{z}&TileCol={x}&TileRow={y}
+    updates:
+        global.earth_style: translucent-polygons
+
+enable-contours:
+    title: Contours
+    layer: true
+    layers: [ hillshade ]
+    updates:
+        global.show_contours: true
+        global.enable_contour_vars: true
+
+enable-slope-angle:
+    title: Slope Angle
+    scene: scenes/slope-angle.yaml
+    layer: true
+    layers: [hillshade]
+    opacity_uniform: hillshade.shaders.uniforms.u_slope_angle_opacity
+    default_opacity: 0.75
+    updates:
+        styles.hillshade.mix#-1: slope-angle
+
+custom-slope-shading:
+    title: Custom Slope Shading
+    scene: scenes/custom-slope-shading.yaml
+    layer: true
+    layers: [hillshade]
+    opacity_uniform: hillshade.shaders.uniforms.u_custom_slope_opacity
+    default_opacity: 0.75
+    updates:
+        styles.hillshade.mix#-1: custom-slope-shading
+
+hillshade:
+    title: Hillshading
+    layer: true
+    scene: scenes/hillshade.yaml
+    updates_vector:
+        layers.earth.enabled: true
+    updates_raster:
+        global.show_hypsometric: false
+        styles.hillshade.shaders.defines.ELEVATION_INDEX: 1
+        sources.raster-0.rasters: [elevation]
+        layers.raster-0.draw.group-0.style: hillshade
