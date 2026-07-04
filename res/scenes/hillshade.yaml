@@ -1,0 +1,199 @@
+# Hillshading and contour lines from DEM (elevation) tiles
+# From: https://github.com/farfromrefug/ascendmaps/tree/abd695a8f13e7c0cfffc96b4daf4f19a336cceda/assets/scenes
+
+import:
+    - elevation.yaml
+
+
+global:
+    contour_color: '#C56008'
+    base_mix_color: [0.9, 0.9, 0.9, 0.8]
+    show_contours: false
+    show_hypsometric: true
+    enable_contour_vars: false
+
+
+application:
+    gui_variables:
+        u_exaggerate:
+            style: hillshade
+            label: Hillshade Exaggeration
+        contour_color:
+            enabled: global.enable_contour_vars
+            label: Contour Color
+            type: color
+        u_min_contour_elev:
+            enabled: global.enable_contour_vars
+            style: hillshade
+            label: Min Contour Elevation (m)
+            step: 100
+            min: -9000
+            max: 9000
+
+
+styles:
+    translucent-polygons:
+        base: polygons
+        lighting: false
+        blend: translucent
+        draw: { alpha: 0.25 }
+
+    mix-base-raster:
+        shaders:
+            uniforms:
+                u_base_mix_color: global.base_mix_color
+            blocks:
+                color: |
+                    base_color.rgb = mix(base_color.rgb, u_base_mix_color.rgb, u_base_mix_color.a);
+
+    hillshade:
+        base: raster
+        mix: [ global.terrain_3d_mixin, get-elevation ]
+        raster: custom
+        blend: nonopaque
+        blend_order: -1002
+        shaders:
+            defines:
+                METRIC_UNITS: global.metric_units
+                SHOW_CONTOURS: global.show_contours
+                SHOW_HYPSOMETRIC: global.show_hypsometric
+            uniforms:
+                u_exaggerate: 4.5
+                u_contour_color: global.contour_color
+                u_min_contour_elev: 0.0
+                u_terrain_color: |
+                    data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="51" height="1">
+                      <defs>
+                        <linearGradient id="grad" x1="0" x2="1.98">
+                          <stop offset="0.0000" stop-color="rgb( 17, 120,   3)" />
+                          <stop offset="0.0100" stop-color="rgb( 72, 162,  69)" />
+                          <stop offset="0.0300" stop-color="rgb(231, 218, 158)" />
+                          <stop offset="0.1500" stop-color="rgb(161,  67,   0)" />
+                          <stop offset="0.3000" stop-color="rgb(130,  30,  30)" />
+                          <stop offset="0.4000" stop-color="rgb(110, 110, 110)" />
+                          <stop offset="0.5000" stop-color="rgb(255, 255, 255)" />
+                          <stop offset="0.6000" stop-color="rgb(255, 255, 255)" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="0" y="0" width="51" height="1" fill="url(#grad)" />
+                    </svg>
+
+            blocks:
+                normal: |
+                    vec2 st = currentRasterUV(ELEVATION_INDEX);
+                    vec2 texwh = rasterPixelSize(ELEVATION_INDEX);
+                    vec2 duv = 1./texwh;
+                    vec2 ij = st * texwh;
+                    vec2 cen_ij = floor(ij) + 0.5;
+                    vec2 uv = cen_ij*duv;
+                    float h00 = getElevationAt(uv - duv);
+                    float h01 = getElevationAt(uv + vec2(-duv.x, 0.));
+                    float h02 = getElevationAt(uv + vec2(-duv.x, duv.y));
+                    float h10 = getElevationAt(uv + vec2(0., -duv.y));
+                    float h11 = getElevationAt(uv);
+                    float h12 = getElevationAt(uv + vec2(0., duv.y));
+                    float h20 = getElevationAt(uv + vec2(duv.x, -duv.y));
+                    float h21 = getElevationAt(uv + vec2(duv.x, 0.));
+                    float h22 = getElevationAt(uv + duv);
+                    bvec2 bot = lessThan(cen_ij, vec2(1.));
+                    bvec2 top = greaterThan(cen_ij + 1., texwh);
+                    if(bot.x) { h00 = 2.*h10 - h20; h01 = 2.*h11 - h21; h02 = 2.*h12 - h22; }
+                    if(top.x) { h20 = 2.*h10 - h00; h21 = 2.*h11 - h01; h22 = 2.*h12 - h02; }
+                    if(bot.y) { h00 = 2.*h01 - h02; h10 = 2.*h11 - h12; h20 = 2.*h21 - h22; }
+                    if(top.y) { h02 = 2.*h01 - h00; h12 = 2.*h11 - h10; h22 = 2.*h21 - h20; }
+                    vec2 dxy_elev = 2.*3.141592*6378137.0*exp2(-u_tile_origin.w)*duv/u_raster_offsets[ELEVATION_INDEX].z;
+                    float unproj = exp(u_map_position.y/6378137.0);
+                    float coslat = 2.0/(unproj + 1.0/unproj);
+                    vec2 f = ij - cen_ij;
+                    float ddxy = (h22 - h20 - h02 + h00)/4.;
+                    mat2 curv = mat2(h21 - 2.*h11 + h01, ddxy, ddxy, h12 - 2.*h11 + h10);
+                    vec2 grad0 = vec2(h21 - h01, h12 - h10)/2.0;
+                    vec2 grad = (grad0 + curv*f)/dxy_elev;
+                    float elev = h11 + dot(f, grad0) + 0.5*dot(f, curv*f);
+                    float hscale = elev > 0. ? u_exaggerate : 0.;
+                    normal = normalize(vec3(-hscale*grad/coslat, 1.));
+                    float slope = length(grad);
+                    float slope_degs = atan(slope/coslat)*180.0/3.141592;
+                    vec4 contour_color = u_contour_color;
+                    #if ELEVATION_INDEX
+                    vec4 base_color = sampleRaster(0);
+                    #elif defined(TANGRAM_TERRAIN_3D)
+                    vec4 base_color = vec4(0.88, 0.88, 0.88, 1.0);
+                    #else
+                    #define HILLSHADE_BLEND_OVER
+                    vec4 shading = calculateLighting(v_position.xyz, normal, vec4(1.0));
+                    vec4 base_color = vec4(0.0, 0.0, 0.0, 0.0);
+                    contour_color = shading*contour_color;
+                    #endif
+                color: |
+                    #ifdef SHOW_CONTOURS
+                    float z = u_map_position.z;
+                    if(z < 10.) {
+                    #ifdef SHOW_HYPSOMETRIC
+                        vec4 relief = texture2D(u_terrain_color, vec2((elev - u_min_contour_elev)/5000., 0.5));
+                        if(u_min_contour_elev <= 0.0 || elev >= u_min_contour_elev)
+                          base_color = mix(base_color, vec4(relief.rgb, 0.75), 1.0/(1.0 + base_color.a));
+                    #endif
+                    } else {
+                    #ifdef METRIC_UNITS
+                        float interval = z >= 14. ? 25. : z >= 12. ? 50. : 100.;
+                        float coarse = z >= 14. ? 100. : z >= 12. ? 200. : 500.;
+                    #else
+                        float interval = (z >= 14. ? 100. : z >= 12. ? 200. : 500.)/3.28084;
+                        float coarse = (z >= 14. ? 500. : z >= 12. ? 1000. : 2000.)/3.28084;
+                    #endif
+                        float linehw = 0.35;
+                    #ifdef TANGRAM_TERRAIN_3D
+                        linehw *= 1.25;
+                        elev = mix(elev, v_world_position.z, clamp(5.0*abs(elev - v_world_position.z)/interval, 0., 1.));
+                        float px_per_elev = 1./fwidth(v_world_position.z);
+                    #else
+                        float px_per_elev = 1./(slope * u_meters_per_pixel);
+                    #endif
+                        float hc = max(elev, u_min_contour_elev + interval/2.);
+                        float dup = fract(hc/interval)*interval * px_per_elev;
+                        float ddn = abs(1. - fract(hc/interval))*interval * px_per_elev;
+                        float cov = max(0.5 - dup + linehw, 0.) + max(0.5 - ddn + linehw, 0.);
+                        float coarsehw = 2.*linehw;
+                        dup = fract(hc/coarse)*coarse * px_per_elev;
+                        ddn = abs(1. - fract(hc/coarse))*coarse * px_per_elev;
+                        cov += max(0.5 - dup + coarsehw, 0.) + max(0.5 - ddn + coarsehw, 0.);
+                        base_color = mix(base_color, contour_color, min(cov, 1.));
+                    }
+                    #endif
+                    #ifdef HILLSHADE_BLEND_OVER
+                    color = vec4(4.0*shading.rgb - 3.0, 0.25);
+                    color = mix(color, base_color, base_color.a);
+                    #else
+                    color = calculateLighting(v_position.xyz, normal, base_color);
+                    color = vec4(color.rgb, 1.0);
+                    #endif
+                    #undef TANGRAM_LIGHTING_FRAGMENT
+
+
+lights:
+    light1: { type: directional, direction: [0, 0, -1], diffuse: 0.2, ambient: 0.35 }
+    light2: { type: directional, direction: [1, -1, -1], diffuse: 0.2, ambient: 0.35 }
+
+
+layers:
+    earth:
+        enabled: false  # enabled via layers.earth.enabled: true SceneUpdate or demo scene override
+        data: { source: elevation }
+        draw: { hillshade: { color: global.earth_color, order: global.earth_order } }
+
+    contour-labels:
+        data: { source: elevation }
+        filter: { $zoom: { min: 12 } }
+        enabled: global.show_contours
+        draw:
+            text:
+                style: contour-labels
+                angle: auto
+                repeat_distance: 200px
+                font:
+                    family: global.primary_font
+                    style: italic
+                    size: 9.33px
+                    fill: global.color.default_label
+                    stroke: { color: global.color.default_halo, width: 2 }

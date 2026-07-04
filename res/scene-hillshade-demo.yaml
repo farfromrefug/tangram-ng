@@ -1,0 +1,92 @@
+# Hillshade Demo Scene
+# Demonstrates: hillshading, hypsometric coloring, contour lines, slope overlays,
+# and dynamic addition of raster sources (from mapsources.default.yaml).
+#
+# Scene files sourced from:
+# https://github.com/farfromrefug/ascendmaps/tree/abd695a8f13e7c0cfffc96b4daf4f19a336cceda/assets
+#
+# Initial camera is centered on the Austrian Alps — good terrain for hillshading.
+#
+# Slope overlays are toggled without a scene reload by updating the global opacity
+# uniforms (global.slope_angle_opacity / global.custom_slope_opacity) via the
+# MapController.updateGlobals() / [TGMapView updateGlobals:] API.
+#
+# A custom raster layer (ArcGIS satellite, defined in mapsources.default.yaml) can
+# be added at runtime by reloading this scene with a SceneUpdate that sets
+# sources.arcgis-satellite and layers.arcgis-satellite-layer.
+
+import:
+    - scenes/hillshade.yaml
+    - scenes/slope-angle.yaml
+    - scenes/custom-slope-shading.yaml
+
+global:
+    # --- config.default.yaml values ---
+    metric_units: true          # config.default.yaml: metric_units
+
+    # --- hillshade display ---
+    show_contours: true
+    show_hypsometric: true
+    earth_color: white
+    earth_order: 0
+
+    # --- slope overlay opacity controls ---
+    # Set to 0.75 to show; 0.0 to hide. Updated via updateGlobals (no scene reload needed).
+    slope_angle_opacity: 0.0
+    custom_slope_opacity: 0.0
+
+    # --- contour label defaults ---
+    primary_font: sans-serif
+    color:
+        default_label: '#605030'
+        default_halo: 'rgba(255,255,255,0.8)'
+
+    # terrain_3d_mixin not used in this demo
+    terrain_3d_mixin: ''
+
+scene:
+    background:
+        color: '#E8E0D8'
+
+cameras:
+    perspective-camera:
+        type: perspective
+        fov: 45
+        # Austrian Alps (Zell am See / Hohe Tauern) — great hillshade terrain
+        position: [12.80, 47.32, 10]
+
+styles:
+    # Override hillshade mix to include both slope overlay styles.
+    # Opacity globals control visibility without requiring a scene reload.
+    hillshade:
+        mix:
+            - get-elevation
+            - slope-angle
+            - custom-slope-shading
+
+    # Bind slope-angle opacity to global so updateGlobals toggles it live
+    slope-angle:
+        shaders:
+            uniforms:
+                u_slope_angle_opacity: global.slope_angle_opacity
+
+    # Bind custom-slope opacity to global so updateGlobals toggles it live
+    custom-slope-shading:
+        shaders:
+            uniforms:
+                u_custom_slope_opacity: global.custom_slope_opacity
+
+    # Style for raster overlays added from mapsources.default.yaml at runtime
+    satellite-overlay:
+        base: raster
+        blend: translucent
+        blend_order: 500
+
+    # Simple text style for contour elevation labels
+    contour-labels:
+        base: text
+
+layers:
+    # Enable the hillshade earth layer (disabled by default in hillshade.yaml)
+    earth:
+        enabled: true

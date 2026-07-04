@@ -14,11 +14,54 @@
         android:inputType="textUri"
         android:selectAllOnFocus="true"/>
 
+    <!-- Hillshade demo control bar -->
+    <LinearLayout
+        android:id="@+id/controlBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:background="#CC000000">
+
+        <!-- Cycles: Slope: OFF → Slope Angle → Custom Slope → OFF -->
+        <Button
+            android:id="@+id/btnSlope"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Slope: OFF"
+            android:textSize="11sp"
+            android:padding="6dp" />
+
+        <!-- Adds/removes ArcGIS satellite overlay from mapsources.default.yaml -->
+        <Button
+            android:id="@+id/btnLayer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Satellite: OFF"
+            android:textSize="11sp"
+            android:padding="6dp" />
+
+        <!-- Toggles contour lines; reads metric_units from config.default.yaml -->
+        <Button
+            android:id="@+id/btnContours"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Contours: ON"
+            android:textSize="11sp"
+            android:padding="6dp" />
+
+    </LinearLayout>
+
     <com.styluslabs.tangram.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@+id/sceneSelector">
+        android:layout_below="@+id/sceneSelector"
+        android:layout_above="@+id/controlBar">
 
     </com.styluslabs.tangram.MapView>
 

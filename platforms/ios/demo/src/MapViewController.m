@@ -1,260 +1,373 @@
 //
 //  MapViewController.m
+//  Hillshade/slope feature demo for iOS
 //
-//  Created by Karim Naaji on 10/12/16.
-//  Copyright © 2016 Karim Naaji. All rights reserved.
+//  Demonstrates use of scene files from:
+//  https://github.com/farfromrefug/ascendmaps/tree/abd695a8f13e7c0cfffc96b4daf4f19a336cceda/assets
+//
+//  Features shown:
+//   - Hillshading (scenes/hillshade.yaml, elevation from ArcGIS WorldElevation3D)
+//   - Slope overlay toggle (slope-angle / custom-slope-shading) via updateGlobals (no reload)
+//   - Custom raster layer (ArcGIS satellite from mapsources.default.yaml) via SceneUpdates + reload
+//   - Contour lines toggle; metric_units read from config.default.yaml
+//
+//  Initial camera: Austrian Alps (Hohe Tauern) lng 12.80 / lat 47.32 / zoom 10
 //
 
 #import "MapViewController.h"
 #import <CoreLocation/CoreLocation.h>
 
-static const NSUInteger MAX_TAPPED_LOCATIONS = 8;
+// Hillshade demo scene — imports hillshade.yaml, slope-angle.yaml, custom-slope-shading.yaml
+static NSString * const kSceneHillshadeDemo = @"asset:///scene-hillshade-demo.yaml";
 
-@interface MapViewController ()  <CLLocationManagerDelegate> {
-    CLLocationCoordinate2D _tappedLocations[MAX_TAPPED_LOCATIONS];
-    NSUInteger _tappedLocationCount;
+// ---- config.default.yaml values used in this demo ----
+// In a full app these would be parsed from the YAML file.
+static const BOOL  kConfigMetricUnits = YES;  // config.default.yaml: metric_units
+static const float kConfigViewZoom    = 10.f; // config.default.yaml: view.zoom (adjusted for Alps)
+static const double kDemoLng = 12.80;
+static const double kDemoLat = 47.32;
+
+// Slope mode constants
+typedef NS_ENUM(NSInteger, SlopeMode) {
+    SlopeModeOff = 0,
+    SlopeModeAngle,       // slope-angle.yaml overlay (coloured by slope angle)
+    SlopeModeCustom       // custom-slope-shading.yaml overlay (user-defined range)
+};
+
+@interface MapViewController () <CLLocationManagerDelegate> {
+    SlopeMode  _slopeMode;
+    BOOL       _satelliteLayerEnabled;
+    BOOL       _contoursEnabled;
 }
 
-@property (assign, nonatomic) TGMarker* markerPolygon;
-@property (strong, nonatomic) TGMapData* mapData;
+@property (strong, nonatomic) UIButton *btnSlope;
+@property (strong, nonatomic) UIButton *btnLayer;
+@property (strong, nonatomic) UIButton *btnContours;
 @property (strong, nonatomic) CLLocationManager *locationManager;
-@property (strong, nonatomic) TGMarker* locationTrackingMarker;
 
-- (void)addAlert:(NSString *)message withTitle:(NSString *)title;
+- (void)addControlButtons;
+- (void)toggleSlope;
+- (void)toggleSatelliteLayer;
+- (void)toggleContours;
+- (NSArray<TGSceneUpdate *> *)buildSceneUpdates;
+- (void)updateButtonLabels;
+- (NSString *)slopeModeLabel;
 
 @end
 
 @implementation MapViewController
 
-#pragma mark TGMapView Delegate
-
-- (void)mapView:(TGMapView *)view didCaptureScreenshot:(UIImage *)screenshot
-{
-    NSLog(@"Did capture screenshot");
-}
-
-- (void)mapViewRegionIsChanging:(TGMapView *)mapView
-{
-    NSLog(@"Region Is Changing");
-}
-
-- (void)mapView:(TGMapView *)mapView regionWillChangeAnimated:(BOOL)animated
-{
-    NSLog(@"Region Will Change animated: %d", animated);
-}
-
-- (void)mapView:(TGMapView *)mapView regionDidChangeAnimated:(BOOL)animated
-{
-    NSLog(@"Region Did Change animated: %d", animated);
-}
-
-- (void)mapViewDidCompleteLoading:(TGMapView *)mapView
-{
-    NSLog(@"Did complete view");
-    // [mapView captureScreenshot:YES];
-}
-
-- (void)mapView:(TGMapView *)mapView didLoadScene:(int)sceneID withError:(nullable NSError *)sceneError
-{
-    if (sceneError) {
-        NSLog(@"Scene Ready with error %@", sceneError);
-        return;
-    }
-
-    // Add a client data source, named 'mz_route_line_transit'
-    self.mapData = [mapView addDataLayer:@"mz_route_line_transit" generateCentroid:NO];
-}
-
-- (void)mapView:(TGMapView *)mapView didSelectMarker:(TGMarkerPickResult *)markerPickResult atScreenPosition:(CGPoint)position;
-{
-    if (!markerPickResult) {
-        return;
-    }
-
-    NSString* message = [NSString stringWithFormat:@"Marker %f %f",
-        markerPickResult.marker.point.latitude,
-        markerPickResult.marker.point.longitude];
-
-    [self addAlert:message withTitle:@"Marker pick callback"];
-}
-
-- (void)mapView:(TGMapView *)mapView didSelectLabel:(TGLabelPickResult *)labelPickResult atScreenPosition:(CGPoint)position
-{
-    if (!labelPickResult) { return; }
-
-    NSLog(@"Picked label:");
-
-    for (NSString* key in [labelPickResult properties]) {
-        NSLog(@"\t%@ -- %@", key, [[labelPickResult properties] objectForKey:key]);
-
-        if ([key isEqualToString:@"name"]) {
-            [self addAlert:[[labelPickResult properties] objectForKey:key] withTitle:@"Label selection callback"];
-        }
-    }
-}
-
-- (void)mapView:(TGMapView *)mapView didSelectFeature:(NSDictionary *)feature atScreenPosition:(CGPoint)position
-{
-    if (!feature) { return; }
-
-    NSLog(@"Picked features:");
-
-    for (id key in feature) {
-        NSLog(@"\t%@ -- %@", key, [feature objectForKey:key]);
-
-        if ([key isEqualToString:@"name"]) {
-            [self addAlert:[[feature objectForKey:key] objectForKey:key] withTitle:@"Feature selection callback"];
-        }
-    }
-}
-
-#pragma mark Gesture Delegate
-
-- (void)mapView:(TGMapView *)view recognizer:(UIGestureRecognizer *)recognizer didRecognizeSingleTapGesture:(CGPoint)location
-{
-    NSLog(@"Did tap at %f %f", location.x, location.y);
-
-    CLLocationCoordinate2D coordinates = [view coordinateFromViewPosition:location];
-
-    if (_tappedLocationCount < MAX_TAPPED_LOCATIONS) {
-        _tappedLocations[_tappedLocationCount++] = coordinates;
-    }
-
-    // Add polyline feature
-    {
-        TGFeatureProperties* properties = @{ @"type" : @"line", @"color" : @"#D2655F" };
-
-        if (_tappedLocationCount > 1) {
-            TGGeoPolyline* polyline = [[TGGeoPolyline alloc] initWithCoordinates:_tappedLocations count:_tappedLocationCount];
-            TGMapFeature *feature = [TGMapFeature mapFeatureWithPolyline:polyline properties:properties];
-            [_mapData setFeatures:@[feature]];
-        }
-    }
-
-    // Add polygon marker
-    {
-        if (!_markerPolygon) {
-            _markerPolygon = [view markerAdd];
-            _markerPolygon.stylingString = @"{ style: 'polygons', color: 'blue', order: 500 }";
-        }
-        if (_tappedLocationCount > 2) {
-            TGGeoPolyline *ring = [[TGGeoPolyline alloc] initWithCoordinates:_tappedLocations count:_tappedLocationCount];
-            TGGeoPolygon *polygon = [[TGGeoPolygon alloc] initWithRings:[NSArray arrayWithObject:ring]];
-            _markerPolygon.polygon = polygon;
-        }
-
-    }
-
-    // Add point marker
-    {
-        TGMarker* markerPoint = [view markerAdd];
-        markerPoint.stylingString = @"{ style: 'points', color: 'white', size: [25px, 25px], collide: false }";
-        markerPoint.point = coordinates;
-    }
-
-    // Request feature picking
-    [view pickFeatureAt:location];
-    [view pickLabelAt:location];
-    // [view pickMarkerAt:location];
-
-    TGCameraPosition* camera = [view cameraPosition];
-    camera.center = CLLocationCoordinate2DMake(coordinates.latitude, coordinates.longitude);
-    [view setCameraPosition:camera withDuration:0.5 easeType:TGEaseTypeCubic callback: ^(BOOL canceled){
-        NSLog(@"Animation completed %d", !canceled);
-    }];
-}
-
-- (void)mapView:(TGMapView *)mapView recognizer:(UIGestureRecognizer *)recognizer didRecognizeLongPressGesture:(CGPoint)location
-{
-    NSLog(@"Did long press at %f %f", location.x, location.y);
-}
-
-- (void)addAlert:(NSString *)message withTitle:(NSString *)title
-{
-    UIAlertController *alert = [[UIAlertController alloc] init];
-
-    alert.title = title;
-    alert.message = message;
-
-    UIAlertAction* okAction = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
-    [alert addAction:okAction];
-
-    [self presentViewController:alert animated:YES completion:nil];
-}
-
-#pragma mark View Controller
-
-- (void)viewWillAppear:(BOOL)animated
-{
-    NSString* apiKey = [[[NSBundle mainBundle] infoDictionary] valueForKey:@"NEXTZEN_API_KEY"];
-    if ([apiKey length] == 0) {
-        apiKey = [[[NSProcessInfo processInfo] environment] valueForKeyPath:@"NEXTZEN_API_KEY"];
-    }
-    NSAssert(apiKey, @"Please provide a valid API key by setting the environment variable NEXTZEN_API_KEY at build time");
-
-    NSMutableArray<TGSceneUpdate *>* updates = [[NSMutableArray alloc]init];
-    [updates addObject:[[TGSceneUpdate alloc]initWithPath:@"global.sdk_api_key" value:apiKey]];
-
-    TGMapView *mapView = (TGMapView *)self.view;
-
-    // Load scene - default bubble-wrap style
-    [mapView loadSceneAsyncFromURL:[NSURL URLWithString:@"https://www.nextzen.org/carto/bubble-wrap-style/9/bubble-wrap-style.zip"] withUpdates:updates];
-    
-    // Alternative: Load PMTiles demo scene (uncomment to test remote PMTiles)
-    // [mapView loadSceneAsyncFromURL:[NSURL URLWithString:@"asset:///scene-pmtiles.yaml"] withUpdates:nil];
-
-    //Location tracking marker setup
-    TGMarker* markerPoint = [mapView markerAdd];
-    markerPoint.stylingString = @"{ style: 'points', color: 'white', size: [25px, 25px], collide: false }";
-    CLLocationCoordinate2D newYork;
-    newYork.longitude = -74.00976419448854;
-    newYork.latitude = 40.70532700869127;
-    markerPoint.point = newYork;
-    self.locationTrackingMarker = markerPoint;
-
-    TGCameraPosition *camera = [[TGCameraPosition alloc] initWithCenter:newYork zoom:15 bearing:0 pitch:0];
-    [mapView setCameraPosition:camera];
-}
+#pragma mark - View Controller
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
 
+    _slopeMode              = SlopeModeOff;
+    _satelliteLayerEnabled  = NO;
+    _contoursEnabled        = YES;
+
     TGMapView *mapView = (TGMapView *)self.view;
     mapView.mapViewDelegate = self;
     mapView.gestureDelegate = self;
+
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.delegate = self;
-    // Enable for Location Tracking
-//     [self.locationManager requestAlwaysAuthorization];
+
+    [self addControlButtons];
 }
 
-- (void)beginBackgroundLocationTracking {
-    self.locationManager.activityType = CLActivityTypeOther;
-    self.locationManager.desiredAccuracy = kCLLocationAccuracyBest;
-    self.locationManager.pausesLocationUpdatesAutomatically = NO;
-    self.locationManager.allowsBackgroundLocationUpdates = YES;
-    [self.locationManager startUpdatingLocation];
-    [self.locationManager startUpdatingHeading];
+- (void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+
+    TGMapView *mapView = (TGMapView *)self.view;
+
+    // Set initial camera — Austrian Alps (Hohe Tauern)
+    // zoom value from config.default.yaml: view.zoom
+    CLLocationCoordinate2D alps = CLLocationCoordinate2DMake(kDemoLat, kDemoLng);
+    TGCameraPosition *camera = [[TGCameraPosition alloc] initWithCenter:alps
+                                                                   zoom:kConfigViewZoom
+                                                                bearing:0
+                                                                  pitch:0];
+    [mapView setCameraPosition:camera];
+
+    // Load hillshade demo scene
+    [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
+                       withUpdates:nil];
 }
 
-#pragma mark - Location Manager Delegate
+#pragma mark - Control Buttons
 
-- (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations {
-    NSLog(@"Locations came in - %@", locations);
-    CLLocationCoordinate2D point = CLLocationCoordinate2DMake(locations[0].coordinate.longitude, locations[0].coordinate.latitude);
-    [self.locationTrackingMarker pointEased:point seconds:1.0 easeType:TGEaseTypeCubic];
+- (void)addControlButtons
+{
+    UIView *controlBar = [[UIView alloc] init];
+    controlBar.backgroundColor = [UIColor colorWithWhite:0 alpha:0.7];
+    controlBar.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:controlBar];
+
+    // Slope toggle — cycles OFF → Slope Angle → Custom Slope → OFF
+    self.btnSlope = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.btnSlope.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.btnSlope setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.btnSlope.titleLabel.font = [UIFont systemFontOfSize:12];
+    [self.btnSlope addTarget:self action:@selector(toggleSlope)
+            forControlEvents:UIControlEventTouchUpInside];
+    [controlBar addSubview:self.btnSlope];
+
+    // Satellite layer — adds/removes ArcGIS satellite from mapsources.default.yaml
+    self.btnLayer = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.btnLayer.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.btnLayer setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.btnLayer.titleLabel.font = [UIFont systemFontOfSize:12];
+    [self.btnLayer addTarget:self action:@selector(toggleSatelliteLayer)
+            forControlEvents:UIControlEventTouchUpInside];
+    [controlBar addSubview:self.btnLayer];
+
+    // Contours toggle — reads kConfigMetricUnits from config.default.yaml
+    self.btnContours = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.btnContours.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.btnContours setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.btnContours.titleLabel.font = [UIFont systemFontOfSize:12];
+    [self.btnContours addTarget:self action:@selector(toggleContours)
+               forControlEvents:UIControlEventTouchUpInside];
+    [controlBar addSubview:self.btnContours];
+
+    [self updateButtonLabels];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [controlBar.leadingAnchor  constraintEqualToAnchor:self.view.leadingAnchor],
+        [controlBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [controlBar.bottomAnchor   constraintEqualToAnchor:self.view.bottomAnchor],
+        [controlBar.heightAnchor   constraintEqualToConstant:56],
+
+        [self.btnSlope.leadingAnchor  constraintEqualToAnchor:controlBar.leadingAnchor],
+        [self.btnSlope.centerYAnchor  constraintEqualToAnchor:controlBar.centerYAnchor],
+        [self.btnSlope.widthAnchor    constraintEqualToAnchor:controlBar.widthAnchor
+                                                   multiplier:1.0/3.0],
+
+        [self.btnLayer.centerXAnchor  constraintEqualToAnchor:controlBar.centerXAnchor],
+        [self.btnLayer.centerYAnchor  constraintEqualToAnchor:controlBar.centerYAnchor],
+        [self.btnLayer.widthAnchor    constraintEqualToAnchor:controlBar.widthAnchor
+                                                   multiplier:1.0/3.0],
+
+        [self.btnContours.trailingAnchor constraintEqualToAnchor:controlBar.trailingAnchor],
+        [self.btnContours.centerYAnchor  constraintEqualToAnchor:controlBar.centerYAnchor],
+        [self.btnContours.widthAnchor    constraintEqualToAnchor:controlBar.widthAnchor
+                                                      multiplier:1.0/3.0],
+    ]];
 }
 
-- (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status {
-    switch (status) {
-        case kCLAuthorizationStatusAuthorizedAlways:
-            // Enable to turn on background location tracking - be aware we don't shut this off ever, so the sample app will consume battery life if allowed to run in the background.
-//             [self beginBackgroundLocationTracking];
-            break;
-        default:
-            break;
+#pragma mark - Slope Overlay Toggle
+
+/**
+ * Cycles slope mode: OFF → Slope Angle → Custom Slope Shading → OFF.
+ *
+ * Uses -[TGMapView updateGlobals:rebuildTiles:] — no scene reload required.
+ * scene-hillshade-demo.yaml binds the shader uniforms to globals:
+ *   u_slope_angle_opacity  → global.slope_angle_opacity
+ *   u_custom_slope_opacity → global.custom_slope_opacity
+ */
+- (void)toggleSlope
+{
+    _slopeMode = (_slopeMode + 1) % 3;
+
+    NSString *slopeAngleOpacity  = (_slopeMode == SlopeModeAngle)  ? @"0.75" : @"0.0";
+    NSString *customSlopeOpacity = (_slopeMode == SlopeModeCustom) ? @"0.75" : @"0.0";
+
+    TGMapView *mapView = (TGMapView *)self.view;
+    [mapView updateGlobals:@[
+        [[TGSceneUpdate alloc] initWithPath:@"global.slope_angle_opacity"  value:slopeAngleOpacity],
+        [[TGSceneUpdate alloc] initWithPath:@"global.custom_slope_opacity" value:customSlopeOpacity]
+    ] rebuildTiles:YES];
+
+    [self updateButtonLabels];
+    NSLog(@"Slope mode: %@", [self slopeModeLabel]);
+}
+
+#pragma mark - Satellite Layer Toggle (from mapsources.default.yaml)
+
+/**
+ * Adds or removes the ArcGIS Satellite raster source.
+ *
+ * The source URL is taken from mapsources.default.yaml (arcgis-satellite entry).
+ * Adding a source requires a scene reload with SceneUpdates; removal reloads without them.
+ * The satellite-overlay style used by the layer is defined in scene-hillshade-demo.yaml.
+ */
+- (void)toggleSatelliteLayer
+{
+    _satelliteLayerEnabled = !_satelliteLayerEnabled;
+
+    TGMapView *mapView = (TGMapView *)self.view;
+    [mapView loadSceneAsyncFromURL:[NSURL URLWithString:kSceneHillshadeDemo]
+                       withUpdates:[self buildSceneUpdates]];
+
+    [self updateButtonLabels];
+    NSLog(@"Satellite layer: %@", _satelliteLayerEnabled ? @"ON" : @"OFF");
+}
+
+/**
+ * Returns SceneUpdates for the satellite layer.
+ * Slope state is handled separately via updateGlobals; only the satellite source definition
+ * needs to be passed as SceneUpdates on scene reload.
+ */
+- (NSArray<TGSceneUpdate *> *)buildSceneUpdates
+{
+    if (!_satelliteLayerEnabled) {
+        return @[];
     }
+    // arcgis-satellite source from mapsources.default.yaml
+    return @[
+        [[TGSceneUpdate alloc] initWithPath:@"sources.arcgis-satellite.type"
+                                      value:@"Raster"],
+        [[TGSceneUpdate alloc] initWithPath:@"sources.arcgis-satellite.url"
+                                      value:@"https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+        [[TGSceneUpdate alloc] initWithPath:@"sources.arcgis-satellite.max_zoom"
+                                      value:@"19"],
+        // Layer rendered with the satellite-overlay style defined in scene-hillshade-demo.yaml
+        [[TGSceneUpdate alloc] initWithPath:@"layers.arcgis-satellite-layer.data.source"
+                                      value:@"arcgis-satellite"],
+        [[TGSceneUpdate alloc] initWithPath:@"layers.arcgis-satellite-layer.draw.satellite-overlay.order"
+                                      value:@"500"],
+    ];
+}
+
+#pragma mark - Contour Lines Toggle
+
+/**
+ * Toggles contour lines on/off.
+ *
+ * kConfigMetricUnits is sourced from config.default.yaml (metric_units: true).
+ * global.metric_units drives #ifdef METRIC_UNITS in the hillshade shader,
+ * selecting 25m/50m/100m intervals (metric) vs. ft-based intervals (imperial).
+ */
+- (void)toggleContours
+{
+    _contoursEnabled = !_contoursEnabled;
+
+    TGMapView *mapView = (TGMapView *)self.view;
+    [mapView updateGlobals:@[
+        [[TGSceneUpdate alloc] initWithPath:@"global.show_contours"
+                                      value:_contoursEnabled ? @"true" : @"false"],
+        // global.metric_units from config.default.yaml: metric_units
+        [[TGSceneUpdate alloc] initWithPath:@"global.metric_units"
+                                      value:kConfigMetricUnits ? @"true" : @"false"],
+    ] rebuildTiles:YES];
+
+    [self updateButtonLabels];
+    NSLog(@"Contours: %@ (metric=%@)", _contoursEnabled ? @"ON" : @"OFF",
+          kConfigMetricUnits ? @"YES" : @"NO");
+}
+
+#pragma mark - Helpers
+
+- (NSString *)slopeModeLabel
+{
+    switch (_slopeMode) {
+        case SlopeModeAngle:  return @"Slope Angle";
+        case SlopeModeCustom: return @"Custom Slope";
+        default:              return @"OFF";
+    }
+}
+
+- (void)updateButtonLabels
+{
+    [self.btnSlope    setTitle:[NSString stringWithFormat:@"Slope: %@", [self slopeModeLabel]]
+                      forState:UIControlStateNormal];
+    [self.btnLayer    setTitle:[NSString stringWithFormat:@"Satellite: %@",
+                                _satelliteLayerEnabled ? @"ON" : @"OFF"]
+                      forState:UIControlStateNormal];
+    [self.btnContours setTitle:[NSString stringWithFormat:@"Contours: %@",
+                                _contoursEnabled ? @"ON" : @"OFF"]
+                      forState:UIControlStateNormal];
+}
+
+#pragma mark - TGMapViewDelegate
+
+- (void)mapView:(TGMapView *)mapView didLoadScene:(int)sceneID withError:(nullable NSError *)sceneError
+{
+    if (sceneError) {
+        NSLog(@"Scene load error: %@", sceneError);
+        return;
+    }
+    NSLog(@"Scene loaded: %d", sceneID);
+
+    // After a scene reload (e.g. satellite layer toggle), re-apply current slope state.
+    if (_slopeMode != SlopeModeOff) {
+        NSString *slopeAngleOpacity  = (_slopeMode == SlopeModeAngle)  ? @"0.75" : @"0.0";
+        NSString *customSlopeOpacity = (_slopeMode == SlopeModeCustom) ? @"0.75" : @"0.0";
+        [mapView updateGlobals:@[
+            [[TGSceneUpdate alloc] initWithPath:@"global.slope_angle_opacity"  value:slopeAngleOpacity],
+            [[TGSceneUpdate alloc] initWithPath:@"global.custom_slope_opacity" value:customSlopeOpacity],
+        ] rebuildTiles:YES];
+    }
+}
+
+- (void)mapViewDidCompleteLoading:(TGMapView *)mapView
+{
+    NSLog(@"Map view did complete loading");
+}
+
+- (void)mapView:(TGMapView *)mapView regionDidChangeAnimated:(BOOL)animated
+{
+    // no-op
+}
+
+- (void)mapView:(TGMapView *)mapView didSelectFeature:(nullable NSDictionary *)feature
+    atScreenPosition:(CGPoint)position
+{
+    if (!feature) { return; }
+    NSString *name = feature[@"name"];
+    NSLog(@"Feature selected: %@", name ?: @"(no name)");
+}
+
+- (void)mapView:(TGMapView *)mapView didSelectLabel:(nullable TGLabelPickResult *)labelPickResult
+    atScreenPosition:(CGPoint)position
+{
+    if (!labelPickResult) { return; }
+    NSLog(@"Label selected: %@", labelPickResult.properties[@"name"] ?: @"(no name)");
+}
+
+- (void)mapView:(TGMapView *)mapView didSelectMarker:(nullable TGMarkerPickResult *)markerPickResult
+    atScreenPosition:(CGPoint)position
+{
+    if (!markerPickResult) { return; }
+    NSLog(@"Marker selected");
+}
+
+- (void)mapView:(TGMapView *)mapView didCaptureScreenshot:(UIImage *)screenshot
+{
+    NSLog(@"Screenshot captured");
+}
+
+#pragma mark - TGRecognizerDelegate
+
+- (void)mapView:(TGMapView *)mapView recognizer:(UIGestureRecognizer *)recognizer
+        didRecognizeSingleTapGesture:(CGPoint)location
+{
+    [mapView pickFeatureAt:location];
+    [mapView pickLabelAt:location];
+
+    CLLocationCoordinate2D coords = [mapView coordinateFromViewPosition:location];
+    TGCameraPosition *camera = [mapView cameraPosition];
+    camera.center = coords;
+    [mapView setCameraPosition:camera withDuration:0.4
+                      easeType:TGEaseTypeCubic
+                      callback:nil];
+}
+
+- (void)mapView:(TGMapView *)mapView recognizer:(UIGestureRecognizer *)recognizer
+        didRecognizeLongPressGesture:(CGPoint)location
+{
+    NSLog(@"Long press at %.1f, %.1f", location.x, location.y);
+}
+
+#pragma mark - CLLocationManagerDelegate
+
+- (void)locationManager:(CLLocationManager *)manager
+    didChangeAuthorizationStatus:(CLAuthorizationStatus)status
+{
+    // Location tracking not used in this demo
 }
 
 @end
