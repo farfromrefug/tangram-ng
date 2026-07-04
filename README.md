@@ -48,6 +48,17 @@ To build the demos (requires cmake):
 * Android: `cd platforms/android && ./gradlew installRelease` (update ndkVersion in tangram/build.gradle as needed)
 * iOS, macOS, Windows: demos not yet updated from tangram-es versions, please open a github issue if needed
 
+## Style Examples ##
+
+The [res/](res/) directory contains comprehensive style examples demonstrating key features:
+* [example-3d-terrain-mbtiles.yaml](res/example-3d-terrain-mbtiles.yaml) - 3D terrain rendering from local MBTiles files
+* [example-raster-transparency.yaml](res/example-raster-transparency.yaml) - Raster layers with transparency, blending modes, and caching
+* [example-geojson.yaml](res/example-geojson.yaml) - GeoJSON/TopoJSON data sources with property-based styling
+* [example-client-geojson.yaml](res/example-client-geojson.yaml) - Creating GeoJSON from strings using C++ API
+* [example-feature-selection.yaml](res/example-feature-selection.yaml) - Interactive feature selection and highlighting
+
+See [EXAMPLES.md](res/EXAMPLES.md) for detailed documentation and usage guide.
+
 
 ## More ##
 

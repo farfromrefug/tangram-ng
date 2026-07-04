@@ -1,0 +1,327 @@
+# Example: Client-Side GeoJSON from String
+# This example demonstrates how to create GeoJSON sources from manually generated
+# GeoJSON strings using the C++ API. This is useful for dynamically adding custom
+# data at runtime without loading from files or URLs.
+
+global:
+    font_sans: "Inter"
+
+fonts:
+  "Inter":
+    - url: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf"
+
+# Base map for context (optional)
+sources:
+    basemap:
+        type: MVT
+        url: https://tiles.openfreemap.org/planet/latest/{z}/{x}/{y}.pbf
+        max_zoom: 14
+
+    # Client-side data source (added via C++ API)
+    # This source is defined in the scene but data is added dynamically
+    my-dynamic-data:
+        type: GeoJSON
+        max_zoom: 16
+        generate_label_centroids: true
+
+# Styles for client-side GeoJSON features
+styles:
+    # Style for user-drawn polygons
+    user-polygons:
+        base: polygons
+        blend: overlay
+        draw:
+            color: '#4285F4'
+            alpha: 0.6
+            order: 100
+
+    # Style for user-drawn lines
+    user-lines:
+        base: lines
+        blend: overlay
+        draw:
+            color: '#EA4335'
+            width: 3px
+            order: 101
+
+    # Style for user-placed points
+    user-points:
+        base: points
+        blend: overlay
+        draw:
+            color: '#34A853'
+            size: 16px
+            order: 102
+
+cameras:
+    perspective-camera:
+        position: [-122.434, 37.777, 12]
+        type: perspective
+        fov: 45
+
+layers:
+    # Base map water
+    water:
+        data: { source: basemap, layer: water }
+        draw:
+            polygons:
+                color: '#a0c8f0'
+                order: 0
+
+    # Client-side polygon features
+    user-areas:
+        data: { source: my-dynamic-data }
+        filter: { geometry: polygon }
+        draw:
+            user-polygons:
+                order: 100
+
+    # Client-side line features
+    user-routes:
+        data: { source: my-dynamic-data }
+        filter: { geometry: [line, multiline] }
+        draw:
+            user-lines:
+                width: [[10, 2px], [14, 4px], [18, 8px]]
+                order: 101
+
+    # Client-side point features
+    user-markers:
+        data: { source: my-dynamic-data }
+        filter: { geometry: point }
+        draw:
+            user-points:
+                size: [[10, 8px], [14, 12px], [18, 16px]]
+                order: 102
+            text:
+                text_source: function() { return feature.name || ''; }
+                font:
+                    family: global.font_sans
+                    size: 11px
+                    fill: black
+                    stroke: { color: white, width: 2px }
+                order: 103
+
+# ============================================================================
+# C++ API Usage Examples
+# ============================================================================
+
+# Example 1: Basic GeoJSON String
+# Add a simple point feature from a GeoJSON string
+#
+# C++:
+#   // Create the data source
+#   auto dataSource = std::make_shared<Tangram::ClientDataSource>(
+#       platform, "my-dynamic-data", "", true);  // true = generate centroids
+#   map->addTileSource(dataSource);
+#
+#   // Create GeoJSON string manually
+#   std::string geojson = R"({
+#       "type": "FeatureCollection",
+#       "features": [{
+#           "type": "Feature",
+#           "geometry": {
+#               "type": "Point",
+#               "coordinates": [-122.4, 37.8]
+#           },
+#           "properties": {
+#               "name": "San Francisco"
+#           }
+#       }]
+#   })";
+#
+#   // Add the GeoJSON data
+#   dataSource->addData(geojson);
+#   dataSource->generateTiles();
+
+# Example 2: Multiple Features
+# Add multiple features with different geometries
+#
+# C++:
+#   std::string geojson = R"({
+#       "type": "FeatureCollection",
+#       "features": [
+#           {
+#               "type": "Feature",
+#               "geometry": {
+#                   "type": "Point",
+#                   "coordinates": [-122.4, 37.8]
+#               },
+#               "properties": {
+#                   "name": "Point A",
+#                   "category": "marker"
+#               }
+#           },
+#           {
+#               "type": "Feature",
+#               "geometry": {
+#                   "type": "LineString",
+#                   "coordinates": [
+#                       [-122.4, 37.8],
+#                       [-122.3, 37.9],
+#                       [-122.2, 37.85]
+#                   ]
+#               },
+#               "properties": {
+#                   "name": "Route 1",
+#                   "type": "path"
+#               }
+#           },
+#           {
+#               "type": "Feature",
+#               "geometry": {
+#                   "type": "Polygon",
+#                   "coordinates": [[
+#                       [-122.5, 37.7],
+#                       [-122.5, 37.9],
+#                       [-122.3, 37.9],
+#                       [-122.3, 37.7],
+#                       [-122.5, 37.7]
+#                   ]]
+#               },
+#               "properties": {
+#                   "name": "Area 1",
+#                   "category": "zone"
+#               }
+#           }
+#       ]
+#   })";
+#
+#   dataSource->clearFeatures();  // Clear previous data
+#   dataSource->addData(geojson);
+#   dataSource->generateTiles();
+
+# Example 3: Programmatically Build GeoJSON
+# Build GeoJSON string from application data
+#
+# C++:
+#   #include <sstream>
+#   #include <vector>
+#
+#   struct Location {
+#       double lng, lat;
+#       std::string name;
+#   };
+#
+#   std::vector<Location> locations = {
+#       {-122.4, 37.8, "Location 1"},
+#       {-122.3, 37.9, "Location 2"},
+#       {-122.5, 37.7, "Location 3"}
+#   };
+#
+#   // Build GeoJSON string
+#   std::ostringstream geojson;
+#   geojson << R"({"type":"FeatureCollection","features":[)";
+#
+#   for (size_t i = 0; i < locations.size(); i++) {
+#       if (i > 0) geojson << ",";
+#       geojson << R"({"type":"Feature",)"
+#               << R"("geometry":{"type":"Point",)"
+#               << R"("coordinates":[)" << locations[i].lng << "," << locations[i].lat << R"(]},)"
+#               << R"("properties":{"name":")" << locations[i].name << R"("}})";
+#   }
+#
+#   geojson << "]}";
+#
+#   dataSource->addData(geojson.str());
+#   dataSource->generateTiles();
+
+# Example 4: Using ClientDataSource Builders (Alternative to GeoJSON String)
+# Add features using the builder API instead of parsing GeoJSON
+#
+# C++:
+#   // Add a point feature
+#   Tangram::Properties pointProps;
+#   pointProps.set("name", "Custom Point");
+#   pointProps.set("type", "marker");
+#   dataSource->addPointFeature(
+#       std::move(pointProps),
+#       Tangram::LngLat{-122.4, 37.8}
+#   );
+#
+#   // Add a polyline feature
+#   Tangram::Properties lineProps;
+#   lineProps.set("name", "Custom Route");
+#   Tangram::ClientDataSource::PolylineBuilder lineBuilder;
+#   lineBuilder.beginPolyline(3);
+#   lineBuilder.addPoint({-122.4, 37.8});
+#   lineBuilder.addPoint({-122.3, 37.9});
+#   lineBuilder.addPoint({-122.2, 37.85});
+#   dataSource->addPolylineFeature(std::move(lineProps), std::move(lineBuilder));
+#
+#   // Add a polygon feature
+#   Tangram::Properties polyProps;
+#   polyProps.set("name", "Custom Area");
+#   Tangram::ClientDataSource::PolygonBuilder polyBuilder;
+#   polyBuilder.beginPolygon(1);  // 1 ring
+#   polyBuilder.beginRing(5);     // 5 points (first = last)
+#   polyBuilder.addPoint({-122.5, 37.7});
+#   polyBuilder.addPoint({-122.5, 37.9});
+#   polyBuilder.addPoint({-122.3, 37.9});
+#   polyBuilder.addPoint({-122.3, 37.7});
+#   polyBuilder.addPoint({-122.5, 37.7});
+#   dataSource->addPolygonFeature(std::move(polyProps), std::move(polyBuilder));
+#
+#   // Generate tiles after adding all features
+#   dataSource->generateTiles();
+
+# Example 5: Update Features Dynamically
+# Clear and update data in response to user actions
+#
+# C++:
+#   // Function to update data based on user input
+#   void updateMapData(const std::vector<Location>& newLocations) {
+#       // Clear existing features
+#       dataSource->clearFeatures();
+#
+#       // Add new features
+#       for (const auto& loc : newLocations) {
+#           Tangram::Properties props;
+#           props.set("name", loc.name);
+#           dataSource->addPointFeature(
+#               std::move(props),
+#               Tangram::LngLat{loc.lng, loc.lat}
+#           );
+#       }
+#
+#       // Regenerate tiles with new data
+#       dataSource->generateTiles();
+#
+#       // Force map update
+#       map->update(0);
+#   }
+
+# Example 6: JSON Library Integration
+# Using a JSON library like nlohmann/json or RapidJSON
+#
+# C++:
+#   #include <nlohmann/json.hpp>
+#
+#   using json = nlohmann::json;
+#
+#   // Create GeoJSON using JSON library
+#   json featureCollection;
+#   featureCollection["type"] = "FeatureCollection";
+#   featureCollection["features"] = json::array();
+#
+#   json feature;
+#   feature["type"] = "Feature";
+#   feature["geometry"]["type"] = "Point";
+#   feature["geometry"]["coordinates"] = {-122.4, 37.8};
+#   feature["properties"]["name"] = "Dynamic Point";
+#
+#   featureCollection["features"].push_back(feature);
+#
+#   // Convert to string and add to map
+#   std::string geojson = featureCollection.dump();
+#   dataSource->addData(geojson);
+#   dataSource->generateTiles();
+
+# Notes:
+# - Always call generateTiles() after adding or clearing features
+# - Use clearFeatures() before adding new data to replace existing features
+# - Properties can be accessed in draw rules and filters
+# - Feature IDs can be specified for individual feature updates
+# - The data source must be added with addTileSource() before use
+# - The source name in the scene must match the name used when creating ClientDataSource
+# - Set generate_label_centroids: true for polygon labels
