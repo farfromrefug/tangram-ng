@@ -14,6 +14,9 @@
 #include <GLFW/glfw3.h>
 #include <cstdlib>
 #include <atomic>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
 #include "gl.h"
 
 #include "util/elevationManager.h"
@@ -42,6 +45,8 @@ void showDebugFlagsGUI();
 void showViewportGUI();
 void showSceneGUI();
 void showMarkerGUI();
+void showMapSourcesGUI();
+void showExamplesGUI();
 
 constexpr double double_tap_time = 0.5; // seconds
 constexpr double scroll_span_multiplier = 0.05; // scaling for zoom and rotation
@@ -104,6 +109,111 @@ Tangram::MarkerID pickResultMarker = 0;
 
 std::vector<SceneUpdate> sceneUpdates;
 //const char* apiKeyScenePath = "global.sdk_api_key";
+
+// ---- Map Sources data ----
+struct MapSource {
+    std::string key;
+    std::string title;
+    bool layer = false;
+    bool archived = false;
+};
+
+std::vector<MapSource> availableSources;
+std::vector<std::string> activeSources;
+bool sourcesLoaded = false;
+
+// ---- Bookmark data ----
+struct Bookmark {
+    std::string name;
+    double lng = 0.0;
+    double lat = 0.0;
+    MarkerID markerId = 0;
+};
+std::vector<Bookmark> bookmarks;
+char bookmarkNameBuf[128] = "My Place";
+
+// ---- Route data ----
+struct RouteWaypoint {
+    double lng = 0.0;
+    double lat = 0.0;
+    std::string label;
+};
+std::vector<RouteWaypoint> routeWaypoints;
+Tangram::MarkerID routePolylineMarker = 0;
+bool addRouteWaypointOnClick = false;
+
+// ---- Search results data ----
+struct SearchResult {
+    std::string name;
+    double lng = 0.0;
+    double lat = 0.0;
+    MarkerID markerId = 0;
+};
+std::vector<SearchResult> searchResults;
+char searchQueryBuf[256] = "";
+bool localSearchActive = false;
+
+// ---- 3D terrain state ----
+bool terrain3dEnabled = false;
+
+// ---- Selection highlight ----
+char selectedOsmIdBuf[64] = "";
+
+// ---- Drawn sources (custom GeoJSON) ----
+struct DrawnLayer {
+    std::string sourceName;
+    std::string geojson;
+    MarkerID markerId = 0;
+};
+std::vector<DrawnLayer> drawnLayers;
+char drawnLayerNameBuf[64] = "my-layer";
+char drawnLayerGeojsonBuf[4096] = R"({"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{"name":"Origin"}}]})";
+
+// Parse a simple mapsources YAML file and populate availableSources.
+// Only handles the flat key: / title: / layer: / archived: structure.
+static void parseMapsourcesFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) { return; }
+
+    MapSource current;
+    bool inEntry = false;
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == '#') { continue; }
+        // A top-level key (no leading space, ends with ':')
+        if (line[0] != ' ' && line[0] != '\t') {
+            if (inEntry && !current.key.empty()) {
+                availableSources.push_back(current);
+            }
+            current = MapSource{};
+            inEntry = false;
+            auto colon = line.find(':');
+            if (colon != std::string::npos) {
+                current.key = line.substr(0, colon);
+                inEntry = true;
+            }
+        } else if (inEntry) {
+            // Strip leading whitespace
+            size_t start = line.find_first_not_of(" \t");
+            if (start == std::string::npos) { continue; }
+            std::string trimmed = line.substr(start);
+            auto colon = trimmed.find(':');
+            if (colon == std::string::npos) { continue; }
+            std::string key = trimmed.substr(0, colon);
+            std::string value;
+            if (colon + 1 < trimmed.size()) {
+                size_t vs = trimmed.find_first_not_of(" \t", colon + 1);
+                if (vs != std::string::npos) { value = trimmed.substr(vs); }
+            }
+            if (key == "title") { current.title = value; }
+            else if (key == "layer") { current.layer = (value == "true"); }
+            else if (key == "archived") { current.archived = (value == "true"); }
+        }
+    }
+    if (inEntry && !current.key.empty()) {
+        availableSources.push_back(current);
+    }
+}
 
 void loadSceneFile(bool setPosition, std::vector<SceneUpdate> updates) {
 
@@ -263,6 +373,8 @@ void run() {
             showViewportGUI();
             showMarkerGUI();
             showDebugFlagsGUI();
+            showMapSourcesGUI();
+            showExamplesGUI();
         }
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
@@ -426,6 +538,20 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
             }
             polyline_marker_coordinates.push_back(location);
             map->markerSetPolyline(polyline_marker, polyline_marker_coordinates.data(), polyline_marker_coordinates.size());
+        }
+
+        if (addRouteWaypointOnClick) {
+            char label[32];
+            std::snprintf(label, sizeof(label), "WP%d", (int)routeWaypoints.size() + 1);
+            routeWaypoints.push_back({ location.longitude, location.latitude, label });
+            if (routePolylineMarker == 0) {
+                routePolylineMarker = map->markerAdd();
+                map->markerSetStylingFromString(routePolylineMarker,
+                    "{ style: lines, color: blue, width: 6px, order: 5001 }");
+            }
+            std::vector<Tangram::LngLat> pts;
+            for (const auto& wp : routeWaypoints) { pts.push_back({ wp.lng, wp.lat }); }
+            map->markerSetPolyline(routePolylineMarker, pts.data(), pts.size());
         }
 
         map->getPlatform().requestRender();
@@ -771,6 +897,297 @@ void showDebugFlagsGUI() {
             setDebugFlag(DebugFlags::selection_buffer, flag);
         }
         ImGui::Checkbox("Wireframe Mode", &wireframe_mode);
+    }
+}
+
+void showMapSourcesGUI() {
+    if (!sourcesLoaded) {
+        // Try to load from the res directory relative to cwd
+        parseMapsourcesFile("res/mapsources.default.yaml");
+        if (availableSources.empty()) {
+            // Fallback: try same directory as scene file
+            parseMapsourcesFile("mapsources.default.yaml");
+        }
+        sourcesLoaded = true;
+    }
+
+    if (ImGui::CollapsingHeader("Map Sources")) {
+        // Button to open add-source popup
+        if (ImGui::Button("Add Source...")) {
+            ImGui::OpenPopup("select_source_popup");
+        }
+
+        if (ImGui::BeginPopup("select_source_popup")) {
+            ImGui::Text("Select a source to add:");
+            ImGui::Separator();
+            for (const auto& src : availableSources) {
+                bool alreadyActive = std::find(activeSources.begin(), activeSources.end(), src.key) != activeSources.end();
+                if (alreadyActive) { ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.f)); }
+                std::string label = src.title.empty() ? src.key : src.title;
+                if (src.layer) { label += " [overlay]"; }
+                if (src.archived) { label += " [archived]"; }
+                if (ImGui::Selectable(label.c_str(), false, alreadyActive ? ImGuiSelectableFlags_Disabled : 0)) {
+                    activeSources.push_back(src.key);
+                    // Apply a scene update so the source URL-template is activated.
+                    // The mapsources system uses global vars; here we signal the key name.
+                    loadSceneFile(false, { SceneUpdate{ "global.active_source_" + src.key, "true" } });
+                    ImGui::CloseCurrentPopup();
+                }
+                if (alreadyActive) { ImGui::PopStyleColor(); }
+            }
+            ImGui::EndPopup();
+        }
+
+        // List active sources with remove button
+        if (!activeSources.empty()) {
+            ImGui::Text("Active sources:");
+            std::string toRemove;
+            for (const auto& key : activeSources) {
+                ImGui::BulletText("%s", key.c_str());
+                ImGui::SameLine();
+                std::string btnLabel = "Remove##" + key;
+                if (ImGui::SmallButton(btnLabel.c_str())) {
+                    toRemove = key;
+                }
+            }
+            if (!toRemove.empty()) {
+                activeSources.erase(std::remove(activeSources.begin(), activeSources.end(), toRemove), activeSources.end());
+                loadSceneFile(false, { SceneUpdate{ "global.active_source_" + toRemove, "false" } });
+            }
+        } else {
+            ImGui::TextDisabled("No sources added yet.");
+        }
+    }
+}
+
+void showExamplesGUI() {
+    if (!ImGui::CollapsingHeader("Examples")) { return; }
+
+    // ---- 1. Drawn sources / layers ----
+    if (ImGui::TreeNode("Drawn Sources / Layers")) {
+        ImGui::InputText("Source name", drawnLayerNameBuf, sizeof(drawnLayerNameBuf));
+        ImGui::InputTextMultiline("GeoJSON", drawnLayerGeojsonBuf, sizeof(drawnLayerGeojsonBuf), ImVec2(-1, 80));
+        if (ImGui::Button("Add layer")) {
+            std::string srcName = drawnLayerNameBuf;
+            std::string geojson = drawnLayerGeojsonBuf;
+            // Add source + layer via SceneUpdates
+            loadSceneFile(false, {
+                SceneUpdate{ "sources." + srcName + ".type", "GeoJSON" },
+                SceneUpdate{ "sources." + srcName + ".data", geojson },
+                SceneUpdate{ "layers." + srcName + ".data.source", srcName },
+                SceneUpdate{ "layers." + srcName + ".draw.points.color", "red" },
+                SceneUpdate{ "layers." + srcName + ".draw.points.size", "12px" },
+                SceneUpdate{ "layers." + srcName + ".draw.points.order", "5000" }
+            });
+            drawnLayers.push_back({ srcName, geojson, 0 });
+        }
+        ImGui::Separator();
+        std::string toRemoveLayer;
+        for (const auto& dl : drawnLayers) {
+            ImGui::BulletText("%s", dl.sourceName.c_str());
+            ImGui::SameLine();
+            std::string btnId = "Remove##dl_" + dl.sourceName;
+            if (ImGui::SmallButton(btnId.c_str())) { toRemoveLayer = dl.sourceName; }
+        }
+        if (!toRemoveLayer.empty()) {
+            drawnLayers.erase(std::remove_if(drawnLayers.begin(), drawnLayers.end(),
+                [&](const DrawnLayer& d) { return d.sourceName == toRemoveLayer; }), drawnLayers.end());
+            // Disable the layer by removing draw rule
+            loadSceneFile(false, {
+                SceneUpdate{ "layers." + toRemoveLayer + ".draw.points.size", "0px" }
+            });
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 2. Routes ----
+    if (ImGui::TreeNode("Routes")) {
+        ImGui::Checkbox("Add waypoint on map click", &addRouteWaypointOnClick);
+        ImGui::Text("Waypoints: %d", (int)routeWaypoints.size());
+        for (size_t i = 0; i < routeWaypoints.size(); ++i) {
+            ImGui::BulletText("%s: %.5f, %.5f", routeWaypoints[i].label.c_str(),
+                routeWaypoints[i].lng, routeWaypoints[i].lat);
+        }
+        if (ImGui::Button("Clear Route")) {
+            routeWaypoints.clear();
+            if (routePolylineMarker != 0) {
+                map->markerRemove(routePolylineMarker);
+                routePolylineMarker = 0;
+            }
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 3. Local search in vector tiles ----
+    if (ImGui::TreeNode("Local Search in Vector Tiles")) {
+        ImGui::InputText("Query (feature name)", searchQueryBuf, sizeof(searchQueryBuf));
+        if (ImGui::Button("Search at center")) {
+            // Pick features near screen center
+            localSearchActive = true;
+            for (const auto& r : searchResults) {
+                if (r.markerId != 0) { map->markerRemove(r.markerId); }
+            }
+            searchResults.clear();
+            float cx = (float)(width * 0.5 * density);
+            float cy = (float)(height * 0.5 * density);
+            map->pickFeatureAt(cx, cy, [](const FeaturePickResult* result) {
+                if (!result) { return; }
+                for (const auto& item : result->properties->items()) {
+                    std::string val = Properties::asString(item.value);
+                    if (item.key == "name" && !val.empty()) {
+                        SearchResult sr;
+                        sr.name = val;
+                        // Convert screen position to LngLat
+                        map->screenPositionToLngLat(result->position[0], result->position[1],
+                            &sr.lng, &sr.lat);
+                        sr.markerId = map->markerAdd();
+                        map->markerSetPoint(sr.markerId, { sr.lng, sr.lat });
+                        map->markerSetStylingFromString(sr.markerId,
+                            "{ style: text, text_source: function(){return 'RESULT';}, font: { size: 10px, fill: orange } }");
+                        searchResults.push_back(sr);
+                        break;
+                    }
+                }
+            });
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 4. Search results on map ----
+    if (ImGui::TreeNode("Search Results")) {
+        ImGui::Text("Results: %d", (int)searchResults.size());
+        std::string toRemoveSR;
+        for (const auto& r : searchResults) {
+            ImGui::BulletText("%s (%.4f, %.4f)", r.name.c_str(), r.lng, r.lat);
+            ImGui::SameLine();
+            std::string btnId = "Fly##sr_" + r.name;
+            if (ImGui::SmallButton(btnId.c_str())) {
+                map->setCameraPosition({ r.lng, r.lat, 16.f });
+            }
+            ImGui::SameLine();
+            std::string removeId = "X##sr_" + r.name;
+            if (ImGui::SmallButton(removeId.c_str())) { toRemoveSR = r.name; }
+        }
+        if (!toRemoveSR.empty()) {
+            searchResults.erase(std::remove_if(searchResults.begin(), searchResults.end(),
+                [&](const SearchResult& r) {
+                    if (r.name == toRemoveSR) { map->markerRemove(r.markerId); return true; }
+                    return false;
+                }), searchResults.end());
+        }
+        if (ImGui::Button("Clear all results")) {
+            for (const auto& r : searchResults) { if (r.markerId != 0) { map->markerRemove(r.markerId); } }
+            searchResults.clear();
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 5. Bookmarks ----
+    if (ImGui::TreeNode("Bookmarks")) {
+        ImGui::InputText("Name", bookmarkNameBuf, sizeof(bookmarkNameBuf));
+        if (ImGui::Button("Bookmark current view")) {
+            auto cam = map->getCameraPosition();
+            Bookmark bm;
+            bm.name = bookmarkNameBuf;
+            bm.lng = cam.longitude;
+            bm.lat = cam.latitude;
+            bm.markerId = map->markerAdd();
+            map->markerSetPoint(bm.markerId, { bm.lng, bm.lat });
+            std::string styling = "{ style: text, text_source: function(){return '"
+                + bm.name + "';}, font: { size: 11px, fill: '#c040c0', stroke: { color: white, width: 3 } } }";
+            map->markerSetStylingFromString(bm.markerId, styling.c_str());
+            bookmarks.push_back(bm);
+        }
+        ImGui::Separator();
+        std::string toRemoveBM;
+        for (const auto& bm : bookmarks) {
+            ImGui::BulletText("%s  (%.4f, %.4f)", bm.name.c_str(), bm.lng, bm.lat);
+            ImGui::SameLine();
+            std::string flyId = "Fly##bm_" + bm.name;
+            if (ImGui::SmallButton(flyId.c_str())) {
+                map->setCameraPosition({ bm.lng, bm.lat, 15.f });
+            }
+            ImGui::SameLine();
+            std::string rmId = "X##bm_" + bm.name;
+            if (ImGui::SmallButton(rmId.c_str())) { toRemoveBM = bm.name; }
+        }
+        if (!toRemoveBM.empty()) {
+            bookmarks.erase(std::remove_if(bookmarks.begin(), bookmarks.end(),
+                [&](const Bookmark& bm) {
+                    if (bm.name == toRemoveBM) { map->markerRemove(bm.markerId); return true; }
+                    return false;
+                }), bookmarks.end());
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 6. 3D terrain ----
+    if (ImGui::TreeNode("3D Terrain")) {
+        ImGui::TextWrapped("Toggle 3D terrain rendering. Requires hillshade/elevation source.");
+        if (ImGui::Checkbox("Enable 3D Terrain", &terrain3dEnabled)) {
+            if (terrain3dEnabled) {
+                loadSceneFile(false, {
+                    SceneUpdate{ "import", "scenes/terrain-3d.yaml" },
+                    SceneUpdate{ "global.show_land_polygons", "false" }
+                });
+            } else {
+                loadSceneFile(false, {
+                    SceneUpdate{ "global.show_land_polygons", "true" }
+                });
+            }
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 7. Custom shader rendering ----
+    if (ImGui::TreeNode("Custom Shader Rendering")) {
+        ImGui::TextWrapped("Activate slope/hillshade overlays via scene updates.");
+        if (ImGui::Button("Enable Hillshade")) {
+            loadSceneFile(false, {
+                SceneUpdate{ "import", "scenes/hillshade.yaml" },
+                SceneUpdate{ "global.show_hypsometric", "true" }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Enable Slope Angle")) {
+            loadSceneFile(false, {
+                SceneUpdate{ "import", "scenes/slope-angle.yaml" },
+                SceneUpdate{ "hillshade.shaders.uniforms.u_slope_angle_opacity", "0.75" }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Enable Custom Slope")) {
+            loadSceneFile(false, {
+                SceneUpdate{ "import", "scenes/custom-slope-shading.yaml" },
+                SceneUpdate{ "hillshade.shaders.uniforms.u_custom_slope_opacity", "0.75" }
+            });
+        }
+        if (ImGui::Button("Disable All Overlays")) {
+            loadSceneFile(false, {
+                SceneUpdate{ "global.show_hypsometric", "false" },
+                SceneUpdate{ "hillshade.shaders.uniforms.u_slope_angle_opacity", "0.0" },
+                SceneUpdate{ "hillshade.shaders.uniforms.u_custom_slope_opacity", "0.0" }
+            });
+        }
+        ImGui::TreePop();
+    }
+
+    // ---- 8. Selection highlighting ----
+    if (ImGui::TreeNode("Selection Highlighting")) {
+        ImGui::TextWrapped("Set global.selected_osm_id to highlight a feature. Click on the map to pick an OSM id.");
+        ImGui::InputText("OSM ID", selectedOsmIdBuf, sizeof(selectedOsmIdBuf));
+        if (ImGui::Button("Highlight Feature")) {
+            loadSceneFile(false, {
+                SceneUpdate{ "global.selected_osm_id", selectedOsmIdBuf }
+            });
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear Highlight")) {
+            selectedOsmIdBuf[0] = '\0';
+            loadSceneFile(false, { SceneUpdate{ "global.selected_osm_id", "" } });
+        }
+        ImGui::TextDisabled("Tip: click a feature, check the log for its osm_id, then paste it above.");
+        ImGui::TreePop();
     }
 }
 

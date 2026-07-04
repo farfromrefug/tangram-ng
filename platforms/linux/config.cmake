@@ -73,7 +73,7 @@ target_link_libraries(tangram
 
 target_compile_options(tangram
   PRIVATE
-  -std=c++14
+  -std=c++17
   -fno-omit-frame-pointer
   -Wall
   -Wreturn-type
