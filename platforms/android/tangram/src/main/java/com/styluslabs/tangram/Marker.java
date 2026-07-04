@@ -9,6 +9,8 @@ import android.graphics.drawable.Drawable;
 import com.styluslabs.tangram.geometry.Polygon;
 import com.styluslabs.tangram.geometry.Polyline;
 
+import java.util.Map;
+
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -200,6 +202,32 @@ public class Marker {
      */
     public boolean setDrawOrder(final int drawOrder) {
         return map.setMarkerDrawOrder(markerId, drawOrder);
+    }
+
+    /**
+     * Sets feature properties on the marker. These properties can be accessed by JavaScript style
+     * functions in the scene file, enabling style-driven highlighting, custom labels, and other
+     * dynamic styling based on the marker's data.
+     *
+     * <p>Example usage for selection highlighting:
+     * <pre>
+     * marker.setProperties(Collections.singletonMap("osm_id", "12345"));
+     * </pre>
+     * @param properties A map of string key/value pairs to set on the marker feature
+     * @return whether the properties were successfully set
+     */
+    public boolean setProperties(@NonNull final Map<String, String> properties) {
+        return map.setMarkerProperties(markerId, properties);
+    }
+
+    /**
+     * Sets an alternate marker to be shown when this marker is occluded by a collision.
+     * The alternate marker is typically a smaller or simplified version of the main marker.
+     * @param alternate The alternate {@link Marker} to show when this marker is occluded
+     * @return whether the alternate was successfully set
+     */
+    public boolean setAlternate(@NonNull final Marker alternate) {
+        return map.setMarkerAlternate(markerId, alternate.getMarkerId());
     }
 
     /**

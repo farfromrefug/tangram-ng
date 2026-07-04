@@ -159,6 +159,33 @@
     }
 }
 
+- (void)setProperties:(NSDictionary<NSString *, NSString *> *)properties
+{
+    _properties = [properties copy];
+
+    Tangram::Properties coreProperties;
+    if (properties) {
+        for (NSString *key in properties) {
+            NSString *value = properties[key];
+            coreProperties.set([key UTF8String], [value UTF8String]);
+        }
+    }
+
+    if (!tangramInstance->markerSetProperties(self.identifier, std::move(coreProperties))) {
+        [self createNSError];
+    }
+}
+
+- (void)setAlternate:(TGMarker *)alternate
+{
+    _alternate = alternate;
+
+    MarkerID altID = alternate ? alternate.identifier : 0;
+    if (!tangramInstance->markerSetAlternate(self.identifier, altID)) {
+        [self createNSError];
+    }
+}
+
 - (void)setIcon:(UIImage *)icon
 {
     _icon = icon;

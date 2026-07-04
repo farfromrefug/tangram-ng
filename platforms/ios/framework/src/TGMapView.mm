@@ -896,6 +896,14 @@ std::vector<Tangram::SceneUpdate> unpackSceneUpdates(NSArray<TGSceneUpdate *> *s
     return self.map->loadSceneYamlAsync([yaml UTF8String], [[url absoluteString] UTF8String], false, sceneUpdates);
 }
 
+- (void)updateGlobals:(nullable NSArray<TGSceneUpdate *> *)updates rebuildTiles:(BOOL)rebuildTiles
+{
+    if (!self.map) { return; }
+
+    auto sceneUpdates = unpackSceneUpdates(updates);
+    self.map->updateGlobals(sceneUpdates, rebuildTiles);
+}
+
 #pragma mark Coordinate Conversions
 
 - (CGPoint)viewPositionFromCoordinate:(CLLocationCoordinate2D)coordinate clipToViewport:(BOOL)clip

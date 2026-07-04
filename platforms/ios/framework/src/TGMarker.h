@@ -102,6 +102,24 @@ TG_EXPORT
 /// A custom user data
 @property (assign, nonatomic) void* userData;
 
+/**
+ Sets feature properties on the marker. These properties can be accessed by JavaScript style
+ functions in the scene file, enabling style-driven highlighting, custom labels, and other
+ dynamic styling based on the marker's data.
+
+ Example — push a selection highlight:
+ ```swift
+ marker.properties = ["osm_id": "12345"]
+ ```
+ */
+@property (copy, nonatomic, nullable) NSDictionary<NSString *, NSString *> *properties;
+
+/**
+ Sets an alternate marker to be shown when this marker is occluded by a collision.
+ The alternate is typically a smaller or simplified version of the main marker.
+ */
+@property (strong, nonatomic, nullable) TGMarker *alternate;
+
 NS_ASSUME_NONNULL_END
 
 /**

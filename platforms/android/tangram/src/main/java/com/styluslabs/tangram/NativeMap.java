@@ -74,7 +74,10 @@ class NativeMap {
     native synchronized boolean markerSetPolygon(long markerID, double[] coordinates, int[] rings, int count);
     native synchronized boolean markerSetVisible(long markerID, boolean visible);
     native synchronized boolean markerSetDrawOrder(long markerID, int drawOrder);
+    native synchronized boolean markerSetProperties(long markerID, String[] properties);
+    native synchronized boolean markerSetAlternate(long markerID, long altMarkerID);
     native synchronized void markerRemoveAll();
+    native synchronized void updateGlobals(String[] updateStrings, boolean rebuildTiles);
     native synchronized void useCachedGlState(boolean use);
     native synchronized void setDefaultBackgroundColor(float r, float g, float b);
 
